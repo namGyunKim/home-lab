@@ -1,0 +1,22 @@
+# 가상 환경
+.venv/
+venv/
+env/
+
+# 빌드 및 배포 관련
+build/
+dist/
+*.spec
+
+# 파이참 관련
+.idea/
+*.iml
+
+# 기타 파이썬 관련 파일
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# 운영체제 관련 파일
+.DS_Store
+Thumbs.db
