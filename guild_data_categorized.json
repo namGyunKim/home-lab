@@ -1,0 +1,444 @@
+{
+    "materials": {
+        "primary": [
+            {
+                "name": "목재+",
+                "total": 1000
+            },
+            {
+                "name": "상급 목재",
+                "total": 1000
+            },
+            {
+                "name": "타르",
+                "total": 200
+            }
+        ],
+        "secondary": [
+            {
+                "name": "강철괴",
+                "total": 1500
+            },
+            {
+                "name": "목재+",
+                "total": 2000
+            },
+            {
+                "name": "아교",
+                "total": 250
+            }
+        ],
+        "tertiary": [
+            {
+                "name": "목재+",
+                "total": 300
+            },
+            {
+                "name": "두꺼운 옷감",
+                "total": 400
+            },
+            {
+                "name": "밧줄",
+                "total": 300
+            }
+        ]
+    },
+    "members": [
+        {
+            "name": "RUN",
+            "contributions": {
+                "primary:목재+": 0,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 0,
+                "primary:타르": 0,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "hoi",
+            "contributions": {
+                "primary:목재+": 0,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 40,
+                "primary:타르": 5,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "김교살",
+            "contributions": {
+                "primary:목재+": 40,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 35,
+                "primary:타르": 10,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "녹아",
+            "contributions": {
+                "primary:목재+": 0,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 0,
+                "primary:타르": 0,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "다름이",
+            "contributions": {
+                "primary:목재+": 0,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 0,
+                "primary:타르": 0,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "대뱃살",
+            "contributions": {
+                "primary:목재+": 0,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 0,
+                "primary:타르": 5,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "맞쥬",
+            "contributions": {
+                "primary:목재+": 0,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 0,
+                "primary:타르": 10,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "모금",
+            "contributions": {
+                "primary:목재+": 40,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 10,
+                "primary:타르": 0,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "빠쓰",
+            "contributions": {
+                "primary:목재+": 0,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 0,
+                "primary:타르": 0,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "사초",
+            "contributions": {
+                "primary:목재+": 0,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 0,
+                "primary:타르": 0,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "소하앙",
+            "contributions": {
+                "primary:목재+": 0,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 0,
+                "primary:타르": 0,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "쓰싹",
+            "contributions": {
+                "primary:목재+": 0,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 0,
+                "primary:타르": 0,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "아가태",
+            "contributions": {
+                "primary:목재+": 0,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 40,
+                "primary:타르": 0,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "아보",
+            "contributions": {
+                "primary:목재+": 0,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 35,
+                "primary:타르": 10,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "여아리사",
+            "contributions": {
+                "primary:목재+": 0,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 75,
+                "primary:타르": 0,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "오효성",
+            "contributions": {
+                "primary:목재+": 230,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 490,
+                "primary:타르": 0,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "응먀",
+            "contributions": {
+                "primary:목재+": 40,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 40,
+                "primary:타르": 10,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "진느",
+            "contributions": {
+                "primary:목재+": 0,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 0,
+                "primary:타르": 0,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "채빛",
+            "contributions": {
+                "primary:목재+": 40,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 50,
+                "primary:타르": 10,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "물그림자",
+            "contributions": {
+                "primary:목재+": 330,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 85,
+                "primary:타르": 0,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "카투",
+            "contributions": {
+                "primary:목재+": 0,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 0,
+                "primary:타르": 0,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "콘티모",
+            "contributions": {
+                "primary:목재+": 0,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 0,
+                "primary:타르": 0,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "블루소다",
+            "contributions": {
+                "primary:목재+": 0,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 35,
+                "primary:타르": 5,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "태태즈",
+            "contributions": {
+                "primary:목재+": 240,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 5,
+                "primary:타르": 5,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "푸른빛의치유",
+            "contributions": {
+                "primary:목재+": 0,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 0,
+                "primary:타르": 0,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "화염술사입니다",
+            "contributions": {
+                "primary:목재+": 0,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 0,
+                "primary:타르": 0,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "힐러이니",
+            "contributions": {
+                "primary:목재+": 0,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "primary:상급 목재": 20,
+                "primary:타르": 0,
+                "secondary:강철괴": 0,
+                "secondary:아교": 0,
+                "tertiary:두꺼운 옷감": 0,
+                "tertiary:밧줄": 0
+            }
+        },
+        {
+            "name": "쪼리",
+            "contributions": {
+                "secondary:아교": 0,
+                "secondary:강철괴": 0,
+                "primary:타르": 0,
+                "primary:목재+": 40,
+                "secondary:목재+": 0,
+                "tertiary:목재+": 0,
+                "tertiary:밧줄": 0,
+                "primary:상급 목재": 40,
+                "tertiary:두꺼운 옷감": 0
+            }
+        }
+    ],
+    "last_updated": {
+        "members": "2025-08-21 16:46:08",
+        "materials": "2025-08-21 16:49:05"
+    }
+}
