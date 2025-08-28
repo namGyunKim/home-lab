@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import messagebox
 import calendar
 from datetime import datetime, timedelta
 import json
@@ -7,25 +7,41 @@ import os
 import math
 
 try:
-    from tkcalendar import DateEntry
+    import ttkbootstrap as ttk
+    from ttkbootstrap.constants import *
 except ImportError:
-    messagebox.showerror("라이브러리 오류", "'tkcalendar' 라이브러리가 설치되지 않았습니다.\n터미널에서 'pip install tkcalendar'를 실행해주세요.")
+    messagebox.showerror("라이브러리 오류", "'ttkbootstrap' 라이브러리가 설치되지 않았습니다.\n터미널에서 'pip install ttkbootstrap'를 실행해주세요.")
     exit()
 
 calendar.setfirstweekday(calendar.SUNDAY)
 
-# --- 상수 정의 ---
-INTERVAL = timedelta(hours=36, minutes=15)
-DATA_FILE = "abyss_schedule_data.json"
-WINDOW_TITLE = "어비스 구멍 일정 (버그 수정)"
-HIGHLIGHT_COLOR = "#3498db"
-HIGHLIGHT_TEXT_COLOR = "white"
-
 class AbyssScheduler:
+    # 클래스 상수 정의
+    INTERVAL = timedelta(hours=36, minutes=15)
+    DATA_FILE = "abyss_schedule_data.json"
+    WINDOW_TITLE = "어비스 구멍 일정"
+    DAY_COLOR = "warning"  # 낮 시간 이벤트 색상 (ttkbootstrap 테마 색상)
+    NIGHT_COLOR = "info"   # 밤 시간 이벤트 색상 (ttkbootstrap 테마 색상)
+    TODAY_COLOR = "primary" # 오늘 날짜를 위한 색상 (ttkbootstrap 테마 색상)
+    CLOSEST_EVENT_COLOR = "success" # 가장 가까운 일정 강조 색상 (초록색)
+
+    # 패치노트 내용 정의
+    PATCH_NOTES = """
+    [Patch Note]
+
+    v1.0 (2025-08-28)
+    - 어비스 구멍 일정 관리 프로그램이 새롭게 시작되었습니다.
+    - 현대적인 UI (superhero 테마)가 적용되었습니다.
+    - 현재 시각 이후의 가장 가까운 일정이 초록색으로 강조됩니다.
+    - 낮/밤 시간대에 따라 일정의 배경색이 변경됩니다.
+    - 현재 주를 포함하여 총 3주 분량의 달력만 표시됩니다.
+    - 시작 날짜와 시간을 설정하고 저장하여 일정을 관리할 수 있습니다.
+    """
+
     def __init__(self, root):
         self.root = root
-        self.root.title(WINDOW_TITLE)
-        self.root.geometry("650x550")
+        self.root.title(self.WINDOW_TITLE)
+        self.root.geometry("800x600")  # 창 크기 조정
         self.root.resizable(False, False)
 
         self.view_date = datetime.now()
@@ -35,178 +51,242 @@ class AbyssScheduler:
         self._update_calendar()
 
     def _load_start_time(self):
+        """데이터 파일에서 시작 시간을 로드합니다."""
+        if not os.path.exists(self.DATA_FILE):
+            print("데이터 파일이 존재하지 않습니다. 기본값으로 시작합니다.")
+            return None
+
         try:
-            if os.path.exists(DATA_FILE):
-                with open(DATA_FILE, 'r') as f:
-                    data = json.load(f)
-                    return datetime.fromisoformat(data['start_time'])
+            with open(self.DATA_FILE, 'r') as f:
+                data = json.load(f)
+                return datetime.fromisoformat(data['start_time'])
         except (IOError, json.JSONDecodeError, KeyError) as e:
-            messagebox.showerror("오류", f"데이터 로딩 실패: {e}")
-        return None
+            messagebox.showerror("오류", f"데이터 로딩 중 오류가 발생했습니다: {e}\n기존 파일을 삭제하고 다시 시도해주세요.")
+            return None
 
     def _save_start_time(self):
-        date_str = self.date_entry.get()
-        time_str = self.time_entry.get()
+        """입력된 시작 시간을 저장하고 캘린더를 갱신합니다."""
+        date_str = self.date_entry.entry.get()
+        time_str = f"{self.hour_spinbox.get()}:{self.minute_spinbox.get()}"
 
         try:
             new_start_time = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
             self.start_time = new_start_time
 
-            with open(DATA_FILE, 'w') as f:
+            with open(self.DATA_FILE, 'w') as f:
                 json.dump({'start_time': self.start_time.isoformat()}, f, indent=4)
 
-            messagebox.showinfo("성공", "시작 시간이 저장되었습니다. 캘린더를 갱신합니다.")
+            messagebox.showinfo("성공", "시작 시간이 성공적으로 저장되었습니다.")
             self._update_calendar()
 
         except ValueError:
-            messagebox.showerror("입력 오류", "시간을 'HH:MM' 형식으로 정확히 입력해주세요.")
+            messagebox.showerror("입력 오류", "유효한 날짜와 시간을 선택해주세요.")
 
     def _update_calendar(self):
-        # 1. 기존 날짜 위젯 모두 삭제
+        """캘린더의 날짜와 이벤트를 갱신합니다."""
+        # 기존 날짜 위젯 모두 삭제
         for widget in self.dates_frame.winfo_children():
             widget.destroy()
 
-        # 2. 현재 월 레이블 업데이트
         self.month_label.config(text=self.view_date.strftime("%Y년 %m월"))
 
-        # 3. 달력에 표시될 날짜 범위 계산
-        year = self.view_date.year
-        month = self.view_date.month
-        
-        first_day_of_month = datetime(year, month, 1)
-        # datetime.weekday()는 월요일=0, 일요일=6
-        first_day_weekday = first_day_of_month.weekday() 
-        
-        # 달력의 시작 날짜(일요일)를 계산
-        days_to_subtract = (first_day_weekday + 1) % 7
-        grid_start_date = first_day_of_month - timedelta(days=days_to_subtract)
-        
-        # 달력의 마지막 날짜 계산 (6주)
-        grid_end_date = grid_start_date + timedelta(days=41)
+        # 캘린더에 표시될 날짜 범위 계산
+        today = datetime.now()
+        start_of_week = today - timedelta(days=today.weekday() + 1)
+        grid_start_date = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
+        grid_end_date = grid_start_date + timedelta(days=20) # 3주 분량 (21일)
 
-        # 4. 달력 범위 내의 모든 이벤트 계산
-        events = {}  # Key: datetime.date, Value: ["HH:MM", ...]
-        if self.start_time:
-            # 시작 시간과 달력 시작 날짜의 차이를 기반으로 첫 이벤트 위치 계산
-            time_diff = grid_start_date - self.start_time
-            num_intervals = time_diff.total_seconds() / INTERVAL.total_seconds()
-            current_event = self.start_time + (math.floor(num_intervals) * INTERVAL)
+        # 달력 범위 내의 모든 이벤트 계산
+        events = self._calculate_events(grid_start_date, grid_end_date)
 
-            # 달력 범위 내의 모든 이벤트를 찾음
-            while current_event.date() <= grid_end_date.date():
-                # 이벤트가 달력 시작 날짜보다 이전이면 다음 간격으로 넘어감
-                if current_event < grid_start_date:
-                    current_event += INTERVAL
-                    continue
-                
-                event_date = current_event.date()
-                if event_date not in events:
-                    events[event_date] = []
-                events[event_date].append(current_event.strftime("%H:%M"))
-                
-                current_event += INTERVAL
+        # 모든 이벤트 중에서 현재 시각 이후의 가장 가까운 이벤트를 찾습니다.
+        closest_event = None
+        min_diff = timedelta.max
+        all_events = [item for sublist in events.values() for item in sublist]
+        for event_dt in all_events:
+            if event_dt >= today:
+                time_diff = event_dt - today
+                if time_diff < min_diff:
+                    min_diff = time_diff
+                    closest_event = event_dt
 
-        # 5. 캘린더 그리기 (6주 x 7일)
+        # 다음 일정 라벨 업데이트
+        if closest_event:
+            self.next_event_label.config(text=f"다음 일정: {closest_event.strftime('%Y년 %m월 %d일 %H시 %M분')}", bootstyle="success", font=("Arial", 16, "bold"))
+        else:
+            self.next_event_label.config(text="다음 일정이 없습니다.", bootstyle="danger")
+
+        # 캘린더 그리기 (3주 x 7일)
         current_date = grid_start_date
-        for r in range(6):
+        for r in range(3):
             self.dates_frame.grid_rowconfigure(r, weight=1)
             for c in range(7):
                 self.dates_frame.grid_columnconfigure(c, weight=1)
-                
-                day_frame = tk.Frame(self.dates_frame, borderwidth=1, relief="solid")
-                day_frame.grid(row=r, column=c, sticky="nsew", padx=1, pady=1)
 
-                day_label = tk.Label(day_frame, text=str(current_date.day), anchor="nw", padx=3, pady=2)
-                day_label.pack(fill=tk.X)
-                
-                # 현재 월이 아니면 회색, 맞으면 검은색 (일/토는 색상 지정)
-                is_current_month = (current_date.month == month)
-                day_fg_color = "gray" if not is_current_month else "black"
-                if c == 0: day_fg_color = "gray" if not is_current_month else "red"
-                elif c == 6: day_fg_color = "gray" if not is_current_month else "blue"
-                day_label.config(fg=day_fg_color)
+                self._draw_day_frame(current_date, c, r, events, today, closest_event)
 
-                # 해당 날짜에 이벤트가 있으면 강조 표시
-                if current_date.date() in events:
-                    day_frame.config(bg=HIGHLIGHT_COLOR)
-                    day_label.config(bg=HIGHLIGHT_COLOR, fg=HIGHLIGHT_TEXT_COLOR, font=("Arial", 9, "bold"))
-                    event_text = "\n".join(events[current_date.date()])
-                    event_label = tk.Label(day_frame, text=event_text, bg=HIGHLIGHT_COLOR, fg=HIGHLIGHT_TEXT_COLOR, font=("Arial", 9, "bold"))
-                    event_label.pack(expand=True)
-                
                 current_date += timedelta(days=1)
-    
+
+    def _calculate_events(self, start_date, end_date):
+        """지정된 날짜 범위 내의 모든 이벤트 시간을 계산합니다."""
+        events = {}
+        if not self.start_time:
+            return events
+
+        current_event = self.start_time
+
+        while current_event.date() <= end_date.date():
+            if current_event < start_date:
+                current_event += self.INTERVAL
+                continue
+
+            event_date = current_event.date()
+            if event_date not in events:
+                events[event_date] = []
+            events[event_date].append(current_event) # datetime 객체 자체를 저장하여 시간 정보를 유지
+
+            current_event += self.INTERVAL
+
+        return events
+
+    def _draw_day_frame(self, current_date, column, row, events, now, closest_event):
+        """단일 날짜 프레임을 그리고 이벤트를 표시합니다."""
+        frame_bg_color = "secondary"
+        label_fg_color = "white"
+
+        is_current_month = (current_date.month == self.view_date.month)
+
+        if not is_current_month:
+            label_fg_color = "gray"
+            frame_bg_color = "#353839"
+        elif column == 0:
+            label_fg_color = "tomato"
+        elif column == 6:
+            label_fg_color = "skyblue"
+
+        if current_date.date() == now.date():
+            frame_bg_color = "primary"
+            label_fg_color = "white"
+
+        day_frame = ttk.Frame(self.dates_frame, style="Secondary.TFrame", borderwidth=1, relief="solid")
+        day_frame.grid(row=row, column=column, sticky="nsew", padx=2, pady=2)
+
+        day_label = ttk.Label(day_frame, text=str(current_date.day), anchor="nw", padding=5, foreground=label_fg_color, font=("Arial", 12, "bold")) # 폰트 크기 조정
+        day_label.pack(fill=tk.X)
+
+        if current_date.date() in events:
+            for event_dt in events[current_date.date()]:
+                event_hour = event_dt.hour
+
+                if event_dt == closest_event:
+                    event_bg = self.CLOSEST_EVENT_COLOR
+                # 낮 (오전 6시 ~ 오후 6시)
+                elif 6 <= event_hour < 18:
+                    event_bg = self.DAY_COLOR
+                # 밤 (그 외)
+                else:
+                    event_bg = self.NIGHT_COLOR
+
+                event_label = ttk.Label(day_frame, text=event_dt.strftime("%H:%M"), style=f"{event_bg}.TLabel", font=("Arial", 10, "bold")) # 폰트 크기 조정
+                event_label.pack(pady=4, padx=4, fill=tk.X) # 패딩 조정
+
     def _create_widgets(self):
-        # --- 상단 컨트롤 프레임 ---
-        control_frame = ttk.Frame(self.root, padding="10")
-        control_frame.pack(fill=tk.X, pady=5)
+        """UI 위젯을 생성하고 배치합니다."""
+        # 탭 위젯 생성
+        notebook = ttk.Notebook(self.root)
+        notebook.pack(expand=True, fill="both", padx=15, pady=15) # 전체 패딩 조정
+
+        # 캘린더 탭 프레임
+        calendar_tab = ttk.Frame(notebook)
+        notebook.add(calendar_tab, text="달력")
+
+        # 패치 노트 탭 프레임
+        patch_note_tab = ttk.Frame(notebook)
+        notebook.add(patch_note_tab, text="패치 노트")
+
+        # 상단 컨트롤 프레임 (캘린더 탭에 속함)
+        control_frame = ttk.Frame(calendar_tab)
+        control_frame.pack(fill=tk.X, pady=10) # 패딩 조정
+
         ttk.Label(control_frame, text="시작 날짜:").pack(side=tk.LEFT, padx=(0, 5))
-        self.date_entry = DateEntry(control_frame, width=12, date_pattern='y-mm-dd', locale='ko_KR')
+        self.date_entry = ttk.DateEntry(control_frame, bootstyle="primary")
         self.date_entry.pack(side=tk.LEFT, padx=5)
-        ttk.Label(control_frame, text="시작 시간 (HH:MM):").pack(side=tk.LEFT, padx=(10, 5))
-        self.time_entry = ttk.Entry(control_frame, width=8)
-        self.time_entry.pack(side=tk.LEFT, padx=5)
-        save_button = ttk.Button(control_frame, text="저장 및 갱신", command=self._save_start_time)
+
+        ttk.Label(control_frame, text="시작 시간:").pack(side=tk.LEFT, padx=(10, 5))
+
+        self.hour_spinbox = ttk.Spinbox(control_frame, from_=0, to=23, wrap=True, width=3, bootstyle="secondary")
+        self.hour_spinbox.pack(side=tk.LEFT, padx=1)
+
+        ttk.Label(control_frame, text=":").pack(side=tk.LEFT)
+
+        self.minute_spinbox = ttk.Spinbox(control_frame, from_=0, to=59, wrap=True, width=3, bootstyle="secondary")
+        self.minute_spinbox.pack(side=tk.LEFT, padx=1)
+
+        save_button = ttk.Button(control_frame, text="저장 및 갱신", command=self._save_start_time, bootstyle="success")
         save_button.pack(side=tk.LEFT, padx=10)
-        
-        # 저장된 시작 시간이 있으면 불러오고, 없으면 기본값 설정
+
         if self.start_time:
-            self.date_entry.set_date(self.start_time.date())
-            self.time_entry.insert(0, self.start_time.strftime("%H:%M"))
+            self.date_entry.entry.delete(0, tk.END)
+            self.date_entry.entry.insert(0, self.start_time.strftime("%Y-%m-%d"))
+            self.hour_spinbox.set(self.start_time.strftime("%H"))
+            self.minute_spinbox.set(self.start_time.strftime("%M"))
         else:
-            self.time_entry.insert(0, "18:00")
-            
-        # --- 캘린더 프레임 ---
-        calendar_frame = ttk.Frame(self.root, padding="10")
-        calendar_frame.pack(expand=True, fill=tk.BOTH)
-        
-        # 월 이동 네비게이션 프레임
+            self.hour_spinbox.set("18")
+            self.minute_spinbox.set("00")
+
+        # 캘린더 프레임 (캘린더 탭에 속함)
+        calendar_frame = ttk.Frame(calendar_tab)
+        calendar_frame.pack(expand=True, fill=tk.BOTH, padx=5, pady=0)  # pady를 0으로 조정하여 간격 제거
+
         nav_frame = ttk.Frame(calendar_frame)
-        nav_frame.pack(fill=tk.X, pady=5)
-        prev_button = ttk.Button(nav_frame, text="< 이전 달", command=lambda: self._change_month(-1))
-        prev_button.pack(side=tk.LEFT)
-        self.month_label = ttk.Label(nav_frame, text="", font=("Arial", 14, "bold"))
-        self.month_label.pack(side=tk.LEFT, expand=True)
-        next_button = ttk.Button(nav_frame, text="다음 달 >", command=lambda: self._change_month(1))
-        next_button.pack(side=tk.RIGHT)
-        
-        # 요일 표시 프레임
+        nav_frame.pack(fill=tk.X, pady=2)
+
+        self.month_label = ttk.Label(nav_frame, text="", font=("Arial", 16, "bold")) # 폰트 크기 조정
+        self.month_label.pack(side=tk.TOP, expand=True)
+        self.next_event_label = ttk.Label(nav_frame, text="", font=("Arial", 20, "bold"))
+        self.next_event_label.pack(side=tk.TOP, pady=5)
+
         days_frame = ttk.Frame(calendar_frame)
-        days_frame.pack(fill=tk.X)
+        days_frame.pack(fill=tk.X, pady=0) # pady를 0으로 조정하여 간격 제거
         days = ["일", "월", "화", "수", "목", "금", "토"]
+
+        # 요일 라벨만 표시
         for i, day in enumerate(days):
-            day_color = "red" if day == "일" else "blue" if day == "토" else "black"
-            lbl = ttk.Label(days_frame, text=day, width=10, anchor="center", foreground=day_color, font=("Arial", 10, "bold"))
+            day_color = "danger" if day == "일" else "info" if day == "토" else "secondary"
+            lbl = ttk.Label(days_frame, text=day, width=10, anchor="center", bootstyle=day_color, font=("Arial", 12, "bold")) # 폰트 크기 조정
             lbl.grid(row=0, column=i, sticky="nsew", padx=1, pady=1)
             days_frame.grid_columnconfigure(i, weight=1)
-            
-        # 날짜가 표시될 메인 프레임
-        self.dates_frame = ttk.Frame(calendar_frame)
+
+        self.dates_frame = ttk.Frame(calendar_tab)
         self.dates_frame.pack(expand=True, fill=tk.BOTH)
 
+        # 패치 노트 위젯 (패치 노트 탭에 속함)
+        patch_text = tk.Text(patch_note_tab, wrap="word", relief="flat", padx=10, pady=10)
+        patch_text.insert(tk.END, self.PATCH_NOTES)
+        patch_text.config(state="disabled") # 읽기 전용으로 설정
+
+        # 스크롤바 추가
+        scrollbar = ttk.Scrollbar(patch_note_tab, command=patch_text.yview)
+        patch_text.config(yscrollcommand=scrollbar.set)
+
+        patch_text.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+
     def _change_month(self, delta):
-        """
-        월을 안전하게 변경하는 수정된 함수입니다.
-        직접 월/연도를 계산하는 대신 timedelta를 사용하여 날짜 계산 오류를 방지합니다.
-        """
-        # 1. 현재 보고 있는 달의 1일로 기준을 잡습니다.
+        """월을 안전하게 변경합니다."""
         first_day_of_view_month = self.view_date.replace(day=1)
-        
-        # 2. 기준일로부터 날짜를 더하거나 빼서 목표 월로 이동합니다.
+
         if delta > 0:
-            # 다음 달로 가기 위해 32일을 더하면 안전하게 다음 달로 넘어갑니다.
             target_day = first_day_of_view_month + timedelta(days=32)
         else:
-            # 이전 달로 가기 위해 하루를 빼면 안전하게 이전 달로 넘어갑니다.
             target_day = first_day_of_view_month - timedelta(days=1)
-            
-        # 3. 목표 월에 도착했으므로, 다시 1일로 설정하여 최종 기준 날짜를 정합니다.
+
         self.view_date = target_day.replace(day=1)
-        
-        # 4. 변경된 날짜를 기준으로 캘린더를 다시 그립니다.
         self._update_calendar()
 
 if __name__ == "__main__":
-    root = tk.Tk()
+    # 루트 윈도우 생성 시 부트스트랩 테마를 적용합니다.
+    root = ttk.Window(themename="superhero")
     app = AbyssScheduler(root)
     root.mainloop()
