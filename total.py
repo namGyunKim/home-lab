@@ -11,6 +11,8 @@ import threading
 import json
 import re
 from enum import Enum, auto
+import webbrowser
+import tkinter.font as tkFont
 
 # pynput 라이브러리가 필요합니다. 설치: pip install pynput
 try:
@@ -1658,44 +1660,83 @@ class InfoTab(ttk.Frame):
         self._create_widgets()
 
     def _create_widgets(self):
-        info_frame = ttk.LabelFrame(self, text="도움말")
+        # --- 출처 링크 추가 (상단으로 이동) ---
+        link_container = tk.Frame(self)
+        link_container.pack(side=tk.TOP, fill=tk.X, pady=(0, 10))
+
+        source_text_label = tk.Label(link_container, text="개발자 블로그 (출처): ")
+        source_text_label.pack(side=tk.LEFT, padx=(0, 2))
+
+        url = "https://blog.naver.com/skarbs01/223987760034"
+        link_label = tk.Label(link_container, text=url, fg="blue", cursor="hand2")
+        link_label.pack(side=tk.LEFT)
+
+        f = tkFont.Font(link_label, link_label.cget("font"))
+        f.configure(underline=True)
+        link_label.configure(font=f)
+        link_label.bind("<Button-1>", lambda e: webbrowser.open_new(url))
+
+        # --- 도움말 내용 ---
+        info_frame = ttk.LabelFrame(self, text="푸크로 (Pucro) 매크로 - 초보자 안내서")
         info_frame.pack(fill=tk.BOTH, expand=True)
 
-        help_text = scrolledtext.ScrolledText(info_frame, wrap=tk.WORD, padx=10, pady=10, bd=0)
+        help_text = scrolledtext.ScrolledText(info_frame, wrap=tk.WORD, padx=10, pady=10, bd=0, font=("Malgun Gothic", 10))
         help_text.pack(fill=tk.BOTH, expand=True)
 
-        help_text.tag_configure("title", font=("", 11, "bold"), spacing3=10)
-        help_text.tag_configure("item", lmargin1=10, lmargin2=10, spacing1=2)
-        help_text.tag_configure("bold", font=("", 9, "bold"))
+        help_text.tag_configure("title", font=("Malgun Gothic", 12, "bold"), spacing3=10, lmargin1=5)
+        help_text.tag_configure("subtitle", font=("Malgun Gothic", 10, "bold"), spacing1=5, lmargin1=10)
+        help_text.tag_configure("item", lmargin1=20, lmargin2=20, spacing1=3)
+        help_text.tag_configure("bold", font=("Malgun Gothic", 10, "bold"))
+        help_text.tag_configure("highlight", background="#FFFDE4", lmargin1=20, lmargin2=20)
 
-        help_text.insert(tk.END, "⚙️ 관리자 권한으로 실행 안내\n", "title")
-        help_text.insert(tk.END,
-                         "게임 내에서 매크로가 정상적으로 클릭하려면, 프로그램을 '관리자 권한'으로 실행해야 합니다.\n\n"
-                         "영구 설정 방법:\n"
-                         "1. 프로그램 파일(.exe)을 마우스 오른쪽 버튼으로 클릭\n"
-                         "2. '속성' > '호환성' 탭으로 이동\n"
-                         "3. '관리자 권한으로 이 프로그램 실행' 옵션을 체크하고 '확인'\n", "item")
 
-        help_text.insert(tk.END, "\n💡 '이미지 대기(초)' 기능 안내\n", "title")
+        # --- 매크로란? ---
+        help_text.insert(tk.END, "🤖 매크로가 처음이신가요?\n", "title")
         help_text.insert(tk.END,
-                         "이 설정은 매크로 체인에 추가된 ", "item")
-        help_text.insert(tk.END, "[이미지 대기]", ("item", "bold"))
+                         "매크로는 간단히 말해 '컴퓨터 작업 자동화' 프로그램입니다.\n"
+                         "사용자의 마우스 클릭, 키보드 입력을 그대로 녹화했다가, 필요할 때마다 똑같이 반복 재생해주는 편리한 기능이죠.\n"
+                         "마치 컴퓨터를 위한 로봇 비서라고 생각하시면 쉽습니다.\n\n", "item")
+        help_text.insert(tk.END, "이 프로그램의 주요 기능:\n", "subtitle")
         help_text.insert(tk.END,
-                         " 동작에만 적용되는 최대 대기 시간(타임아웃)입니다.\n\n"
-                         "예를 들어 '30'으로 설정하면, 매크로는 해당 이미지를 최대 30초까지만 기다립니다. 30초 안에 이미지를 찾으면 즉시 다음으로 넘어가고, 찾지 못하면 대기를 포기하고 다음으로 넘어갑니다.\n\n"
-                         "목록의 ", "item")
-        help_text.insert(tk.END, "'실행 후 대기(초)'", ("item", "bold"))
-        help_text.insert(tk.END, "는 동작이 끝난 뒤 무조건 쉬는 고정 시간이란 점에서 차이가 있습니다.\n", "item")
+                         "•  매크로 체인: 마우스/키보드 움직임을 녹화하고, 이미지 찾기 같은 명령을 조합하여 하나의 작업 흐름(.pchain)을 만듭니다.\n"
+                         "•  매크로 그룹: 여러 개의 '매크로 체인'을 묶어서 더 복잡하고 긴 작업을 순서대로 자동화(.pgroup)할 수 있습니다.\n"
+                         "•  이미지 매크로: 화면에서 특정 이미지를 찾아 클릭하는, 가장 간단한 방식의 매크로입니다.\n", "item")
 
-        help_text.insert(tk.END, "\n📂 체인/그룹 파일과 상대 경로 안내\n", "title")
+        # --- 관리자 권한 ---
+        help_text.insert(tk.END, "\n⭐ 가장 중요! '관리자 권한'으로 실행하기\n", "title")
         help_text.insert(tk.END,
-                         "매크로 체인(.pchain) 또는 그룹(.pgroup)을 저장하면, 포함된 파일들의 경로가 ", "item")
-        help_text.insert(tk.END, "상대 경로", ("item", "bold"))
+                         "특히 게임에서 매크로를 사용하려면 이 설정이 필수입니다.\n", "item")
+        help_text.insert(tk.END, "왜 필요한가요?\n", "subtitle")
         help_text.insert(tk.END,
-                         "로 저장됩니다.\n\n"
-                         "따라서, 관련 파일들을 하나의 폴더에 같이 넣어두면, 폴더를 통째로 다른 컴퓨터나 다른 위치로 옮겨도 매크로가 정상적으로 작동합니다.\n", "item")
+                         "대부분의 게임은 높은 보안 수준(권한)으로 실행됩니다. 매크로가 게임 안을 들여다보고 클릭하려면, 게임과 동등하거나 더 높은 '관리자 권한'이 필요하기 때문입니다. 이 권한이 없으면 매크로가 게임창을 인식하지 못해 아무런 반응을 하지 않습니다.\n\n", "item")
+        help_text.insert(tk.END, "영구 설정 방법 (한 번만 하면 됩니다):\n", "subtitle")
+        help_text.insert(tk.END,
+                         "1. 푸크로 프로그램 파일(.exe)을 마우스 오른쪽 버튼으로 클릭\n"
+                         "2. '속성' 메뉴 선택\n"
+                         "3. '호환성' 탭으로 이동\n"
+                         "4. '관리자 권한으로 이 프로그램 실행' 옵션을 체크하고 '확인'\n", "item")
+
+        # --- 기능 설명 ---
+        help_text.insert(tk.END, "\n💡 주요 기능 상세 설명\n", "title")
+        help_text.insert(tk.END, "'이미지 대기(초)'는 무엇인가요?\n", "subtitle")
+        help_text.insert(tk.END,
+                         "매크로 체인 재생 시, 특정 이미지가 화면에 나타날 때까지 '최대 몇 초까지 기다릴지' 정하는 시간입니다.\n\n"
+                         "예시: '이미지 대기'를 30초로 설정하고 '물약' 이미지를 기다리는 동작을 추가했다면?\n"
+                         "→ 30초 안에 '물약' 이미지가 보이면 즉시 다음 동작으로 넘어갑니다.\n"
+                         "→ 30초가 지나도 이미지가 안 보이면, 기다리는 것을 포기하고 다음 동작으로 넘어갑니다.\n\n", "item")
+        help_text.insert(tk.END,
+                         "'실행 후 대기(초)'와의 차이점:\n'실행 후 대기'는 동작 성공 여부와 관계없이 무조건 지정된 시간만큼 쉬는 고정적인 휴식 시간입니다.\n", "highlight")
+
+        help_text.insert(tk.END, "\n'상대 경로' - 파일 관리 꿀팁\n", "subtitle")
+        help_text.insert(tk.END,
+                         "매크로 체인(.pchain)이나 그룹(.pgroup)을 저장하면, 그 안에 포함된 녹화 파일이나 이미지 파일의 위치가 '상대 경로'로 저장됩니다.\n\n"
+                         "이게 왜 좋을까요?\n", "item")
+        help_text.insert(tk.END,
+                         "모든 관련 파일(체인, 그룹, 녹화, 이미지)을 하나의 폴더에 같이 넣어두기만 하면, 이 폴더를 통째로 다른 컴퓨터로 옮기거나 USB에 담아도 경로 문제 없이 바로 사용할 수 있습니다. 파일 경로를 일일이 수정할 필요가 없어 매우 편리합니다.\n", "item")
+
 
         help_text.config(state=tk.DISABLED)
+
 
 class GlobalAreaSelector:
     def __init__(self, tab):
