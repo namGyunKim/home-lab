@@ -112,7 +112,15 @@ class AbyssScheduler:
 
         # 다음 일정 라벨 업데이트
         if closest_event:
-            self.next_event_label.config(text=f"다음 일정: {closest_event.strftime('%Y년 %m월 %d일 %H시 %M분')}", bootstyle="success", font=("Arial", 16, "bold"))
+            # 한글 요일 리스트
+            weekdays_kr = ["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"]
+            weekday_kr = weekdays_kr[closest_event.weekday()]
+
+            self.next_event_label.config(
+            text=f"다음 일정: {closest_event.strftime('%Y년 %m월 %d일')} ({weekday_kr}) {closest_event.strftime('%H시 %M분')}",
+            bootstyle="success",
+            font=("Arial", 16, "bold")
+)
         else:
             self.next_event_label.config(text="다음 일정이 없습니다.", bootstyle="danger")
 
