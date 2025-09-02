@@ -11,7 +11,8 @@ WINDOW_TITLE = "길드 재료 기여 현황"
 CATEGORIES = OrderedDict([
     ("primary", "1차 재료"),
     ("secondary", "2차 재료"),
-    ("tertiary", "3차 재료")
+    ("tertiary", "3차 재료"),
+    ("quaternary", "4차 재료") # 4차 재료 추가
 ])
 LOG_LIMIT = 100 # 최대 로그 저장 개수
 
@@ -144,7 +145,7 @@ class EditContributionDialog(tk.Toplevel):
             if new_total < 0:
                 messagebox.showwarning("계산 오류", "계산 결과가 0보다 작을 수 없습니다.", parent=self)
                 return
-        
+
         self.result = new_total
         self.withdraw()
         self.update_idletasks()
@@ -162,7 +163,7 @@ class RankingDialog(tk.Toplevel):
         self.transient(parent)
         self.title(f"{category_name} 납품 랭킹 (헤더 클릭으로 정렬)")
         self.parent = parent
-        
+
         self.ranking_data = ranking_data
         self.materials_in_category = materials_in_category
         self.sort_column = 'total'
@@ -180,7 +181,7 @@ class RankingDialog(tk.Toplevel):
         self.buttonbox()
         self.grab_set()
         self.protocol("WM_DELETE_WINDOW", self.cancel)
-        
+
         width = 250 + len(materials_in_category) * 90
         screen_width = self.winfo_screenwidth()
         max_width = int(screen_width * 0.8)
@@ -202,16 +203,16 @@ class RankingDialog(tk.Toplevel):
 
     def body(self, master, category_name):
         ttk.Label(master, text=f"{category_name} 납품 랭킹", style='DialogHeader.TLabel').pack(pady=(0, 15))
-        
+
         tree_frame = ttk.Frame(master, style='Dialog.TFrame')
         tree_frame.pack(fill="both", expand=True)
 
         self.tree = ttk.Treeview(tree_frame, show="headings")
-        
+
         vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
         hsb = ttk.Scrollbar(tree_frame, orient="horizontal", command=self.tree.xview)
         self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
-        
+
         vsb.pack(side='right', fill='y')
         hsb.pack(side='bottom', fill='x')
         self.tree.pack(side='left', fill='both', expand=True)
@@ -223,7 +224,7 @@ class RankingDialog(tk.Toplevel):
 
         columns = ["rank", "name"] + [f"{cat_key}:{mat['name']}" for mat, cat_key in self.materials_in_category] + ["total"]
         self.tree["columns"] = columns
-        
+
         self.tree.heading("rank", text="순위", command=lambda: self._sort_by("rank"))
         self.tree.heading("name", text="길드원", command=lambda: self._sort_by("name"))
         for mat, cat_key in self.materials_in_category:
@@ -278,7 +279,7 @@ class RankingDialog(tk.Toplevel):
         self.parent.focus_set()
         self.destroy()
 
-# --- ★★★ 새로운 기능: 납품 로그 표시 대화상자 ★★★ ---
+# --- 납품 로그 표시 대화상자 ---
 class LogDialog(tk.Toplevel):
     """납품 로그를 보여주는 대화상자 클래스"""
     def __init__(self, parent, logs):
@@ -286,7 +287,7 @@ class LogDialog(tk.Toplevel):
         self.transient(parent)
         self.title("최근 납품 로그")
         self.parent = parent
-        
+
         self.style = ttk.Style(self)
         self.style.theme_use('clam')
         self.style.configure('Treeview.Heading', font=('Inter', 10, 'bold'))
@@ -309,7 +310,7 @@ class LogDialog(tk.Toplevel):
         log_time = datetime.fromisoformat(timestamp_str)
         now = datetime.now()
         delta = now - log_time
-        
+
         seconds = delta.total_seconds()
         if seconds < 60:
             return "방금 전"
@@ -342,7 +343,7 @@ class LogDialog(tk.Toplevel):
             change = log.get("change", 0)
             change_str = f"+{change:,}" if change > 0 else f"{change:,}"
             result_str = f"{log.get('old_value', 0):,} → {log.get('new_value', 0):,}"
-            
+
             tree.insert("", "end", values=(
                 relative_time,
                 log.get("member", ""),
@@ -372,7 +373,7 @@ class GuildContributionTracker:
         self.root.title(WINDOW_TITLE)
         self.root.geometry("1200x800")
         self.root.minsize(1000, 700)
-        
+
         self.style = ttk.Style(self.root)
         self.style.theme_use('clam')
         self._configure_styles()
@@ -419,6 +420,11 @@ class GuildContributionTracker:
                     # 로그 필드 확인 및 추가
                     if "logs" not in data:
                         data["logs"] = []
+
+                    # 4차 재료 카테고리 추가
+                    if "quaternary" not in data["materials"]:
+                        data["materials"]["quaternary"] = []
+
                     return data
             except (IOError, json.JSONDecodeError) as e:
                 messagebox.showerror("오류", f"데이터 로딩 실패: {e}")
@@ -451,14 +457,14 @@ class GuildContributionTracker:
                         composite_key = f"{cat_key}:{name}"
                         new_contributions[composite_key] = value if i == 0 else 0
             member['contributions'] = new_contributions
-        
+
         data["last_updated"] = {"members": None, "materials": None}
         data["logs"] = [] # 로그 필드 초기화
         return data
 
     def _get_default_data(self):
         return {
-            "materials": { "primary": [], "secondary": [], "tertiary": [] },
+            "materials": { "primary": [], "secondary": [], "tertiary": [], "quaternary": [] }, # 4차 재료 추가
             "members": [],
             "last_updated": { "members": None, "materials": None },
             "logs": []
@@ -468,23 +474,23 @@ class GuildContributionTracker:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if update_type in self.data["last_updated"]:
             self.data["last_updated"][update_type] = now
-        
+
         try:
             with open(DATA_FILE, 'w', encoding='utf-8') as f:
                 json.dump(self.data, f, indent=4, ensure_ascii=False)
         except IOError as e:
             messagebox.showerror("오류", f"데이터 저장 실패: {e}")
-        
+
         self._update_timestamp_display()
 
     def _create_widgets(self):
         main_frame = ttk.Frame(self.root, padding="10 10 10 10")
         main_frame.pack(expand=True, fill="both")
-        
+
         header_frame = ttk.Frame(main_frame, padding="0 0 0 10")
         header_frame.pack(fill="x")
         ttk.Label(header_frame, text=WINDOW_TITLE, style='Header.TLabel').pack(side="left", anchor='w')
-        
+
         timestamp_frame = ttk.Frame(header_frame)
         timestamp_frame.pack(side="right")
         self.materials_updated_label = ttk.Label(timestamp_frame, text="", style='TimestampBody.TLabel', anchor='e')
@@ -531,23 +537,27 @@ class GuildContributionTracker:
         paned_window.add(right_pane, weight=4)
         view_filter_frame = ttk.Frame(right_pane)
         view_filter_frame.pack(fill="x", pady=(0, 10))
-        
+
         radio_button_frame = ttk.Frame(view_filter_frame)
         radio_button_frame.pack(side="left")
         ttk.Radiobutton(radio_button_frame, text="총 재료", variable=self.view_category_var, value="all", command=self._update_display_panes).pack(side="left", padx=5)
         for key, text in CATEGORIES.items():
             ttk.Radiobutton(radio_button_frame, text=text, variable=self.view_category_var, value=key, command=self._update_display_panes).pack(side="left", padx=5)
-        
+
         button_frame_right = ttk.Frame(view_filter_frame)
         button_frame_right.pack(side="right")
         ttk.Button(button_frame_right, text="납품 로그 보기", command=self._show_logs).pack(side="left", padx=(0, 5))
-        ttk.Button(button_frame_right, text="납품 랭킹 보기", command=self._show_ranking).pack(side="left")
+        ttk.Button(button_frame_right, text="납품 랭킹 보기", command=self._show_ranking).pack(side="left", padx=(0, 5))
+        ttk.Button(button_frame_right, text="초기화", command=self._reset_contributions, style='Danger.TButton').pack(side="left")
+
+        # 초기화 버튼 스타일 추가
+        self.style.configure('Danger.TButton', foreground='red')
 
         self.progress_frame = ttk.LabelFrame(right_pane, text="재료별 진행 상황", padding="10")
         self.progress_frame.pack(fill="x", pady=(0, 10))
         contribution_frame = ttk.LabelFrame(right_pane, text="개인별 기여도 현황", padding="10")
         contribution_frame.pack(fill="both", expand=True)
-        
+
         main_search_frame = ttk.Frame(contribution_frame)
         main_search_frame.pack(fill="x", pady=(0, 5))
         ttk.Label(main_search_frame, text="길드원 검색:").pack(side="left")
@@ -596,9 +606,9 @@ class GuildContributionTracker:
             cat_name = CATEGORIES.get(view_cat)
             for mat in self.data["materials"].get(view_cat, []):
                 self.current_display_materials.append((mat, view_cat))
-        
+
         for widget in self.progress_frame.winfo_children(): widget.destroy()
-        
+
         all_contributions = {}
         for cat_key, materials in self.data["materials"].items():
             for mat in materials:
@@ -630,9 +640,9 @@ class GuildContributionTracker:
                     all_contributions[composite_key] = sum(mem["contributions"].get(composite_key, 0) for mem in self.data["members"])
 
         for i in self.tree.get_children(): self.tree.delete(i)
-        
+
         use_unique_names = self.view_category_var.get() == 'all'
-        
+
         display_columns = ["길드원"]
         for mat, cat_key in self.current_display_materials:
             cat_name = CATEGORIES[cat_key]
@@ -641,7 +651,7 @@ class GuildContributionTracker:
             display_columns.append(col_name)
 
         self.tree["columns"] = display_columns
-        
+
         self.tree.heading("길드원", text="길드원", anchor="center", command=lambda: self._sort_by_column("길드원"))
         self.tree.column("길드원", width=120, anchor="w", stretch=False)
 
@@ -652,7 +662,7 @@ class GuildContributionTracker:
             self.tree.column(col_name, anchor="center", width=100, stretch=True)
 
         members_data = self.data["members"]
-        
+
         search_term = self.main_table_search_var.get().lower()
         if search_term:
             members_data = [m for m in members_data if search_term in m["name"].lower()]
@@ -660,8 +670,8 @@ class GuildContributionTracker:
         if self.sort_column and self.sort_column != "길드원":
             members_data = sorted(members_data, key=lambda m: m["contributions"].get(self.sort_column, 0), reverse=self.sort_reverse)
         elif self.sort_column == "길드원":
-             members_data = sorted(members_data, key=lambda m: m["name"], reverse=self.sort_reverse)
-        
+            members_data = sorted(members_data, key=lambda m: m["name"], reverse=self.sort_reverse)
+
         for i, member in enumerate(members_data):
             if not member or not member.get("name") or not str(member.get("name")).strip(): continue
             values = [member["name"]]
@@ -669,7 +679,7 @@ class GuildContributionTracker:
                 composite_key = f"{cat_key}:{mat['name']}"
                 values.append(f"{member['contributions'].get(composite_key, 0):,}")
             self.tree.insert("", "end", values=values, tags=('evenrow' if i % 2 == 0 else 'oddrow',))
-        
+
         if self.data["members"] and not search_term: # 검색 중일 때는 총계 숨김
             total_values = ["총계"]
             for mat, cat_key in self.current_display_materials:
@@ -783,7 +793,7 @@ class GuildContributionTracker:
             if member["name"] == old_name:
                 member["name"] = new_name
                 break
-        
+
         self._update_ui()
         self._save_data('members')
 
@@ -813,12 +823,12 @@ class GuildContributionTracker:
         display_name = self.tree.heading(column_id, "text")
 
         current_value = self.data['members'][next(i for i, m in enumerate(self.data['members']) if m['name'] == member_name)]['contributions'].get(composite_key, 0)
-        
+
         dialog = EditContributionDialog(self.root, "수량 수정", member_name, display_name, current_value)
         new_value = dialog.result
 
         if new_value is not None:
-            # --- ★★★ 기능 개선: 로그 기록 로직 추가 ★★★ ---
+            # --- 기능 개선: 로그 기록 로직 추가 ---
             log_entry = {
                 "timestamp": datetime.now().isoformat(),
                 "member": member_name,
@@ -842,7 +852,7 @@ class GuildContributionTracker:
 
     def _show_ranking(self):
         view_cat_key = self.view_category_var.get()
-        
+
         materials_for_ranking = []
         if view_cat_key == "all":
             category_name = "총 재료"
@@ -861,7 +871,7 @@ class GuildContributionTracker:
         ranking_data = []
         for member in self.data['members']:
             total_contribution = sum(member['contributions'].get(f"{cat_key}:{mat['name']}", 0) for mat, cat_key in materials_for_ranking)
-            
+
             ranking_data.append({
                 "name": member['name'],
                 "total": total_contribution,
@@ -872,13 +882,34 @@ class GuildContributionTracker:
 
         RankingDialog(self.root, "납품 랭킹", category_name, ranking_data, materials_for_ranking)
 
-    # --- ★★★ 새로운 기능: 로그 보기 메서드 ★★★ ---
+    # --- 납품 로그 보기 메서드 ---
     def _show_logs(self):
         logs = self.data.get("logs", [])
         if not logs:
             messagebox.showinfo("정보", "표시할 납품 로그가 없습니다.")
             return
         LogDialog(self.root, logs)
+
+    # --- 새로운 기능: 납품 재료 및 개수 초기화 메서드 ---
+    def _reset_contributions(self):
+        if messagebox.askyesno(
+                "데이터 초기화",
+                "**재료 목록**과 **길드원들의 납품 개수**를 모두 초기화하시겠습니까? \n\n길드원 목록은 유지됩니다. 이 작업은 되돌릴 수 없습니다.",
+                icon='warning'
+        ):
+            # 1. 재료 목록 초기화
+            self.data["materials"] = {key: [] for key in CATEGORIES.keys()}
+
+            # 2. 길드원별 기여도 초기화
+            for member in self.data["members"]:
+                member["contributions"] = {}
+
+            # 3. 로그 초기화
+            self.data["logs"] = []
+
+            self._update_ui()
+            self._save_data('materials')
+            messagebox.showinfo("초기화 완료", "재료 목록과 납품 개수가 성공적으로 초기화되었습니다.")
 
 if __name__ == "__main__":
     root = tk.Tk()
