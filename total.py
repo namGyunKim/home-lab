@@ -734,7 +734,7 @@ class RecordingMacroTab(ttk.Frame):
     def _set_dirty(self, dirty=True):
         if self.is_dirty == dirty: return
         self.is_dirty = dirty
-        title = "푸크로 V4.2"
+        title = "푸크로 V4.3"
         if dirty: title += "*"
         self.app.root.title(title)
 
@@ -1197,7 +1197,7 @@ class ChainGroupTab(ttk.Frame):
     def _set_dirty(self, dirty=True):
         if self.is_dirty == dirty: return
         self.is_dirty = dirty
-        title = "푸크로 V4.2"
+        title = "푸크로 V4.3"
         if dirty: title += "*"
         self.app.root.title(title)
 
@@ -1347,6 +1347,7 @@ class ChainGroupTab(ttk.Frame):
         for item in selected_items:
             if item in self.chain_playlist_data: del self.chain_playlist_data[item]
             self.chain_tree.delete(item)
+        self.log(f"{len(selected_items)}개 항목을 그룹에서 제거했습니다.")
         self._set_dirty()
 
     def clear_chain_list(self, from_load=False):
@@ -1488,17 +1489,18 @@ class PatchNotesTab(ttk.Frame):
         notes_text_widget.tag_configure("subtitle", font=("", 10, "bold"), spacing1=10, lmargin1=5)
         notes_text_widget.tag_configure("item", lmargin1=15, lmargin2=15, spacing1=2)
 
-        notes_text_widget.insert(tk.END, "푸크로 v4.2\n", "title")
+        notes_text_widget.insert(tk.END, "푸크로 v4.3\n", "title")
+        notes_text_widget.insert(tk.END, "주요 변경사항 (버그 수정 및 안정성 개선)\n", "subtitle")
+        notes_text_widget.insert(tk.END, "• 🐞 [안정성] 프로그램을 반복해서 최소화/복원할 때 시스템 트레이 아이콘이 사라지던 버그를 수정했습니다.\n", "item")
+        notes_text_widget.insert(tk.END, "• 🐞 [안정성] 'X' 버튼으로 종료 시, 실행 중인 모든 매크로 스레드가 확실하게 종료되도록 로직을 개선했습니다.\n", "item")
+        notes_text_widget.insert(tk.END, "• ✨ [UI/UX] 이제 최소화 버튼을 누르면 트레이로, 'X' 버튼을 누르면 프로그램이 완전히 종료됩니다.\n", "item")
+
+        notes_text_widget.insert(tk.END, "\n푸크로 v4.2\n", "title")
         notes_text_widget.insert(tk.END, "주요 변경사항 (편의성 개선)\n", "subtitle")
         notes_text_widget.insert(tk.END, "• ✨ [피드백] 매크로 실행 시 현재 동작이 목록에서 하이라이트됩니다. (클릭 위치 표시는 성능 문제로 제거)\n", "item")
         notes_text_widget.insert(tk.END, "• ✨ [테스트] 매크로 체인 목록에서 항목을 하나만 선택하여 테스트 실행하는 기능이 추가되었습니다.\n", "item")
-        notes_text_widget.insert(tk.END, "• ✨ [UI/UX] 프로그램을 닫을 때 시스템 트레이로 최소화되며, 시작/종료 시 알림이 표시됩니다.\n", "item")
         notes_text_widget.insert(tk.END, "• ✨ [UI/UX] 목록에서 Shift, Ctrl 키 등으로 여러 항목을 선택하여 한 번에 제거할 수 있습니다.\n", "item")
-        notes_text_widget.insert(tk.END, "\n푸크로 v4.1\n", "title")
-        notes_text_widget.insert(tk.END, "주요 변경사항\n", "subtitle")
-        notes_text_widget.insert(tk.END, "• ✨ [핵심 기능] '매크로 그룹'을 파일(.pgroup)로 저장하고 불러오는 기능을 추가했습니다.\n", "item")
-        notes_text_widget.insert(tk.END, "• ✨ [편의성] 마지막으로 사용한 탭과 그룹 파일을 기억하여 다음 실행 시 자동으로 불러옵니다.\n", "item")
-        notes_text_widget.insert(tk.END, "• ✨ [안정성] 그룹 수정 후 저장하지 않고 종료 시, 저장 여부를 확인합니다.\n", "item")
+
         notes_text_widget.config(state=tk.DISABLED)
 
 class InfoTab(ttk.Frame):
@@ -1587,7 +1589,7 @@ class GlobalAreaSelector:
 class MainApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("푸크로 V4.2")
+        self.root.title("푸크로 V4.3")
         self.config_path = os.path.join(os.path.expanduser("~"), ".pucro_config.json")
         self.config = self.load_config()
         self.root.geometry(self.config.get("geometry", "1100x750"))
@@ -1599,9 +1601,13 @@ class MainApp:
         self.style.configure("TMenubutton", padding=5)
         self.hotkey_listener = None
         self.tray_icon = None
+        self.minimized_to_tray = False
+
         self._create_widgets()
         self._setup_hotkeys()
-        self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
+
+        self.root.protocol("WM_DELETE_WINDOW", self.confirm_and_quit)
+        self.root.bind("<Unmap>", self.on_minimize)
 
     def load_config(self):
         try:
@@ -1721,11 +1727,21 @@ class MainApp:
             if self.recording_tab.macro.is_recording: self.recording_tab.macro._on_release(key)
         except Exception: pass
 
-    def _on_closing(self):
+    def on_minimize(self, event):
+        if self.root.state() == 'iconic' and not self.minimized_to_tray:
+            self.minimized_to_tray = True
+            self.hide_to_tray()
+
+    def confirm_and_quit(self):
+        if self.image_tab.macro.is_running or self.recording_tab.macro.is_playing or self.group_tab.macro.is_playing:
+            if not messagebox.askyesno("종료 확인", "매크로가 실행 중입니다. 정말로 종료하시겠습니까?"):
+                return
+
         if self.recording_tab.is_dirty or self.group_tab.is_dirty:
             if not messagebox.askyesno("종료 확인", "저장되지 않은 변경사항이 있습니다. 저장하지 않고 종료하시겠습니까?"):
                 return
-        self.hide_to_tray()
+
+        self.quit_app()
 
     def setup_tray_icon(self):
         try:
@@ -1733,7 +1749,8 @@ class MainApp:
         except FileNotFoundError:
             width, height = 64, 64
             image = PILImage.new('RGB', (width, height), color = 'blue')
-        menu = (pystray.MenuItem('보이기', self.show_from_tray, default=True), pystray.MenuItem('종료', self.quit_app))
+
+        menu = (pystray.MenuItem('보이기', self.show_from_tray, default=True), pystray.MenuItem('종료', self.confirm_and_quit))
         self.tray_icon = pystray.Icon("Pucro", image, "Pucro 매크로", menu)
         self.tray_icon.run()
 
@@ -1744,14 +1761,25 @@ class MainApp:
             self.notify("프로그램이 시스템 트레이에서 실행 중입니다.")
 
     def show_from_tray(self):
-        if self.tray_icon: self.tray_icon.stop()
+        self.minimized_to_tray = False
+        if self.tray_icon:
+            self.tray_icon.stop()
+            self.tray_icon = None # 🐞 [버그 수정] 아이콘 객체를 초기화하여 재실행 문제 해결
         self.root.after(0, self.root.deiconify)
 
     def quit_app(self):
+        # 모든 매크로 스레드 중지 신호 보내기
+        self.image_tab.macro.stop()
+        self.recording_tab.macro.stop_playback()
+        self.recording_tab.macro.stop_recording()
+        self.group_tab.macro.stop_playback()
+
+        # 시스템 트레이 아이콘 및 리스너 중지
         if self.tray_icon: self.tray_icon.stop()
-        self.save_config()
         if self.hotkey_listener and self.hotkey_listener.is_alive():
             self.hotkey_listener.stop()
+
+        self.save_config()
         self.root.destroy()
 
     def notify(self, message, title="Pucro 매크로"):
