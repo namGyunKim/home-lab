@@ -1494,6 +1494,7 @@ class PatchNotesTab(ttk.Frame):
         notes_text_widget.insert(tk.END, "• 🐞 [안정성] 프로그램을 반복해서 최소화/복원할 때 시스템 트레이 아이콘이 사라지던 버그를 수정했습니다.\n", "item")
         notes_text_widget.insert(tk.END, "• 🐞 [안정성] 'X' 버튼으로 종료 시, 실행 중인 모든 매크로 스레드가 확실하게 종료되도록 로직을 개선했습니다.\n", "item")
         notes_text_widget.insert(tk.END, "• ✨ [UI/UX] 이제 최소화 버튼을 누르면 트레이로, 'X' 버튼을 누르면 프로그램이 완전히 종료됩니다.\n", "item")
+        notes_text_widget.insert(tk.END, "• 🐞 [안정성] 듀얼 모니터 환경에서 프로그램 실행 시 창이 보이지 않던 문제를 해결했습니다.\n", "item")
 
         notes_text_widget.insert(tk.END, "\n푸크로 v4.2\n", "title")
         notes_text_widget.insert(tk.END, "주요 변경사항 (편의성 개선)\n", "subtitle")
@@ -1592,7 +1593,7 @@ class MainApp:
         self.root.title("푸크로 V4.3")
         self.config_path = os.path.join(os.path.expanduser("~"), ".pucro_config.json")
         self.config = self.load_config()
-        self.root.geometry(self.config.get("geometry", "1100x750"))
+
         self.style = ttk.Style(self.root)
         try: self.style.theme_use('clam')
         except tk.TclError: print("'clam' 테마를 찾을 수 없습니다. 기본 테마로 실행합니다.")
@@ -1604,10 +1605,38 @@ class MainApp:
         self.minimized_to_tray = False
 
         self._create_widgets()
+        self._validate_and_set_geometry(self.config.get("geometry"))
         self._setup_hotkeys()
 
         self.root.protocol("WM_DELETE_WINDOW", self.confirm_and_quit)
         self.root.bind("<Unmap>", self.on_minimize)
+
+    def _validate_and_set_geometry(self, geometry):
+        width, height = 1100, 750
+        if not geometry:
+            self.center_window(width, height)
+            return
+        try:
+            match = re.match(r"(\d+)x(\d+)\+(-?\d+)\+(-?\d+)", geometry)
+            if match:
+                w, h, x, y = map(int, match.groups())
+                width, height = w, h
+                if pyautogui.onScreen(x, y):
+                    self.root.geometry(geometry)
+                    return
+                else:
+                    self.log_event("⚠️ 저장된 창 위치가 현재 화면 밖에 있어 중앙으로 재설정합니다.")
+            self.center_window(width, height)
+        except Exception:
+            self.center_window(width, height)
+
+    def center_window(self, width, height):
+        self.root.update_idletasks()
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x = (screen_width // 2) - (width // 2)
+        y = (screen_height // 2) - (height // 2)
+        self.root.geometry(f'{width}x{height}+{x}+{y}')
 
     def load_config(self):
         try:
@@ -1620,15 +1649,18 @@ class MainApp:
 
     def save_config(self):
         try:
-            config_data = {
-                "geometry": self.root.geometry(),
+            # 창이 최소화된 상태에서는 geometry를 저장하지 않음
+            if self.root.state() == 'normal':
+                self.config['geometry'] = self.root.geometry()
+
+            self.config.update({
                 "image_tab": {"last_folder": self.image_tab.image_folder_path.get()},
                 "record_tab": {"last_chain": self.recording_tab.current_chain_path},
                 "group_tab": {"last_group": self.group_tab.current_group_path},
                 "last_tab_index": self.notebook.index(self.notebook.select())
-            }
+            })
             with open(self.config_path, 'w', encoding='utf-8') as f:
-                json.dump(config_data, f, indent=4)
+                json.dump(self.config, f, indent=4)
         except (IOError, tk.TclError) as e:
             print(f"설정 파일 저장 오류: {e}")
 
