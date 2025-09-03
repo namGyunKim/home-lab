@@ -8,7 +8,7 @@ import math
 d
 try:a
     import ttkbootstrap as ttk
-    from ttkbootstrap.constants import *
+    from ttkbootstrap.constants import *f
 except ImportError:
     messagebox.showerror("라이브러리 오류", "'ttkbootstrap' 라이브러리가 설치되지 않았습니다.\n터미널에서 'pip install ttkbootstrap'를 실행해주세요.")
     exit()
