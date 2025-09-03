@@ -6,7 +6,7 @@ import json
 import os
 import math
 
-try:
+try:a
     import ttkbootstrap as ttk
     from ttkbootstrap.constants import *
 except ImportError:
