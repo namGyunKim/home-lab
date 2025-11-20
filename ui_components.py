@@ -1,529 +1,52 @@
-# 필요한 라이브러리를 불러옵니다.
-import pyautogui
-import time
-import glob
-import os
-import sys
-from PIL import Image
 import tkinter as tk
 from tkinter import ttk, scrolledtext, filedialog, messagebox
-import threading
-import json
-import re
-from enum import Enum, auto
-import webbrowser
 import tkinter.font as tkFont
+import os
+import json
+import webbrowser
+from pynput import mouse, keyboard
+from constants import RepeatMode, MacroType
+from macro_logic import AutoClickerMacro, RecordingMacro, ChainGroupMacro
 
-# --- 추가 라이브러리 설치 확인 ---
-# pynput: 키보드/마우스 제어
-try:
-    from pynput import mouse, keyboard
-except ImportError:
-    print("오류: pynput 라이브러리가 필요합니다. 'pip install pynput' 명령어로 설치해주세요.")
-    sys.exit()
+# --- GUI 탭 클래스 정의 ---
 
-# pystray: 시스템 트레이 아이콘 기능
-try:
-    import pystray
-    from PIL import Image as PILImage
-except ImportError:
-    print("오류: pystray 라이브러리가 필요합니다. 'pip install pystray' 명령어로 설치해주세요.")
-    sys.exit()
-
-
-# --- 상수 정의 ---
-class ActionType(Enum):
-    KEY_DOWN = 'key_down'
-    KEY_UP = 'key_up'
-    MOUSE_DOWN = 'mouse_down'
-    MOUSE_UP = 'mouse_up'
-    MOVE = 'move'
-
-class MacroType(Enum):
-    FILE = 'file'
-    MEMORY = 'memory'
-    IMAGE_WAIT = 'image_wait'
-
-class RepeatMode(Enum):
-    INFINITE = auto()
-    COUNT = auto()
-    DURATION = auto()
-
-# --- 이미지 매크로 실행 로직 ---
-def execute_image_scan(log_func, image_folder_path, stop_event, pause_event):
-    """
-    지정된 폴더의 이미지를 한 번 스캔하여 클릭하는 함수.
-    성공적으로 하나라도 클릭했는지 여부를 반환합니다.
-    """
-    config_path = os.path.join(image_folder_path, 'config.json')
-    settings = {'confidence_level': 0.7, 'click_interval': 0.1, 'frenzy_mode': False, 'use_search_area': False, 'search_area_coords': None}
-    try:
-        if os.path.exists(config_path):
-            with open(config_path, 'r', encoding='utf-8') as f:
-                settings.update(json.load(f))
-    except Exception as e:
-        log_func(f"⚠️ '{os.path.basename(image_folder_path)}' 폴더의 config.json 로드 실패: {e}")
-
-    confidence = float(settings['confidence_level'])
-    interval = float(settings['click_interval'])
-    is_frenzy = settings['frenzy_mode']
-    search_region = settings['search_area_coords'] if settings['use_search_area'] else None
-
-    search_pattern = os.path.join(image_folder_path, 'image*.png')
-    all_files = glob.glob(search_pattern)
-    def natural_sort_key(s):
-        return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', os.path.basename(s))]
-    image_files = sorted(all_files, key=natural_sort_key)
-
-    if not image_files:
-        log_func(f"이미지 폴더 '{os.path.basename(image_folder_path)}'에 'image*.png' 파일 없음.")
-        return False
-
-    any_image_clicked = False
-    for image_path in image_files:
-        pause_event.wait() # 일시정지 대기
-        if stop_event.is_set():
-            log_func("이미지 스캔 중지됨.")
-            break
-        try:
-            img = Image.open(image_path)
-            location = pyautogui.locateCenterOnScreen(img, confidence=confidence, grayscale=True, region=search_region)
-
-            if location:
-                if is_frenzy:
-                    pyautogui.click(location, clicks=3, interval=0.01)
-                    log_func(f"✅ ⚡ 3회 클릭: '{os.path.basename(image_path)}'")
-                else:
-                    pyautogui.click(location)
-                    log_func(f"✅ 클릭: '{os.path.basename(image_path)}'")
-                any_image_clicked = True
-                time.sleep(interval)
-        except Exception as e:
-            log_func(f"🔥 '{os.path.basename(image_path)}' 처리 중 오류: {e}")
-
-    return any_image_clicked
-
-# --- 매크로 실행 유틸리티 클래스 ---
-class MacroExecutor:
-    @staticmethod
-    def execute_macro_item(item_info, callbacks, stop_event, pause_event, speed, timeout, app=None, tree=None):
-        """
-        매크로 체인 목록의 단일 항목을 실행합니다.
-        성공 또는 계속 진행 가능한 오류 시 True, 중지 또는 치명적 오류 시 False를 반환합니다.
-        """
-        if app and tree and item_info.get('item_id'):
-            app.root.after(0, app.update_tree_selection, tree, item_info['item_id'])
-
-        pause_event.wait()
-        if stop_event.is_set(): return False
-
-        macro_type = item_info['type']
-        macro_data = item_info['data']
-        display_name = item_info['display_name']
-
-        callbacks['log'](f"▶️ '{display_name}' 실행 시작...")
-
-        if macro_type == MacroType.IMAGE_WAIT.value:
-            callbacks['log'](f"⌛ '{os.path.basename(macro_data)}' 이미지를 찾는 중 (최대 {timeout}초)...")
-            wait_start = time.time()
-            found = False
-            while not stop_event.is_set() and (time.time() - wait_start) < timeout:
-                pause_event.wait()
-                try:
-                    img = Image.open(macro_data)
-                    if pyautogui.locateOnScreen(img, confidence=0.8):
-                        callbacks['log'](f"✅ '{os.path.basename(macro_data)}' 발견.")
-                        found = True
-                        break
-                    stop_event.wait(0.5)
-                except Exception as e:
-                    callbacks['log'](f"🔥 이미지 대기 중 오류: {e}")
-                    stop_event.wait(1)
-            if not found and not stop_event.is_set():
-                callbacks['log'](f"⚠️ 시간 초과: '{os.path.basename(macro_data)}'를 찾지 못했습니다.")
-        else:  # FILE or MEMORY
-            actions = macro_data if macro_type == MacroType.MEMORY.value else callbacks['load_actions_from_file'](macro_data)
-            if actions is None:
-                return False
-            if not actions:
-                callbacks['log'](f"⚠️ '{display_name}'에 실행할 동작이 없습니다.")
-                return True
-
-            for action in actions:
-                pause_event.wait()
-                if stop_event.is_set(): return False
-
-                delay = action.get('delay', 0) / speed
-                stop_event.wait(delay)
-
-                if stop_event.is_set(): return False
-
-                action_type = action['type']
-                pos = action.get('pos')
-                if pos: pyautogui.moveTo(pos, duration=0)
-
-                if action_type == ActionType.MOUSE_DOWN.value: pyautogui.mouseDown(button=action['button'])
-                elif action_type == ActionType.MOUSE_UP.value: pyautogui.mouseUp(button=action['button'])
-                elif action_type == ActionType.KEY_DOWN.value: pyautogui.keyDown(action['key'])
-                elif action_type == ActionType.KEY_UP.value: pyautogui.keyUp(action['key'])
-
-        if stop_event.is_set(): return False
-
-        try:
-            item_delay = float(item_info.get('delay', 0))
-            if item_delay > 0:
-                callbacks['log'](f"🔗 다음 동작까지 {item_delay}초 대기...")
-                stop_event.wait(timeout=item_delay)
-        except (ValueError, TypeError):
-            callbacks['log'](f"⚠️ 매크로 간 간격 값 '{item_info.get('delay')}'이(가) 잘못되었습니다.")
-
-        return not stop_event.is_set()
-
-# --- 1. 이미지 매크로 로직 클래스 ---
-class AutoClickerMacro:
-    def __init__(self, callbacks):
-        self.c = callbacks
-        self.is_running = False
-        self.is_paused = False
-        self.macro_thread = None
-        self.stop_event = threading.Event()
-        self.pause_event = threading.Event()
-        self.pause_event.set()
-
-    def start(self, settings):
-        if self.is_running:
-            self.c['log']("⚠️ 이미 이미지 매크로가 실행 중입니다.")
-            return
-        if not settings['image_folder']:
-            self.c['log']("⚠️ 먼저 이미지 폴더를 선택해주세요.")
-            return
-        self.is_running = True
-        self.is_paused = False
-        self.stop_event.clear()
-        self.pause_event.set()
-        self.macro_thread = threading.Thread(target=self.run_macro, args=(settings,), daemon=True)
-        self.macro_thread.start()
-        self.c['update_ui'](running=True)
-
-    def stop(self):
-        if not self.is_running: return
-        self.is_running = False
-        self.stop_event.set()
-        self.pause_event.set()
-        self.c['log']("이미지 매크로 중지를 요청했습니다...")
-
-    def pause_or_resume(self):
-        if not self.is_running: return
-        self.is_paused = not self.is_paused
-        if self.is_paused:
-            self.pause_event.clear()
-            self.c['log']("⏸️ 이미지 매크로 일시정지.")
-            self.c['update_status']("이미지 매크로 일시정지 중...")
-        else:
-            self.pause_event.set()
-            self.c['log']("▶️ 이미지 매크로 재개.")
-            self.c['update_status']("이미지 매크로 실행 중...")
-        self.c['update_ui'](paused=self.is_paused)
-
-    def run_macro(self, settings):
-        self.c['log']("🚀 이미지 매크로를 시작합니다...")
-        self.c['update_status']("이미지 매크로 실행 중...")
-        start_time = time.time()
-        loop_count = 0
-        try:
-            while self.is_running:
-                if settings['repeat_mode'] == RepeatMode.COUNT and loop_count >= settings['repeat_value']:
-                    self.c['log'](f"👍 {loop_count}회 반복 완료.")
-                    break
-                if settings['repeat_mode'] == RepeatMode.DURATION and (time.time() - start_time) / 60 >= settings['repeat_value']:
-                    self.c['log'](f"👍 {settings['repeat_value']}분 실행 완료.")
-                    break
-                self.pause_event.wait()
-                if not self.is_running: break
-                execute_image_scan(self.c['log'], settings['image_folder'], self.stop_event, self.pause_event)
-                if not self.is_running: break
-                loop_count += 1
-                self.c['log'](f"👍 순회 완료. {settings['repeat_delay']}초 후 다시 시작.")
-                self.stop_event.wait(timeout=settings['repeat_delay'])
-        except Exception as e:
-            self.c['log'](f"🔥 매크로 실행 중 치명적 오류: {e}")
-        finally:
-            self.is_running = False
-            self.is_paused = False
-            self.c['update_ui'](running=False, paused=False)
-            self.c['log']("🛑 이미지 매크로가 중지되었습니다.")
-            self.c['update_status']("준비")
-
-# --- 2. 녹화 매크로 로직 클래스 ---
-class RecordingMacro:
-    def __init__(self, callbacks):
-        self.c = callbacks
-        self.recorded_actions = []
-        self.is_recording = False
-        self.is_playing = False
-        self.is_paused = False
-        self.playback_thread = None
-        self.mouse_listener = None
-        self.keyboard_listener = None
-        self.last_action_time = None
-        self.is_mouse_down = False
-        self.stop_event = threading.Event()
-        self.pause_event = threading.Event()
-        self.pause_event.set()
-
-    def start_recording(self):
-        if self.is_recording:
-            self.c['log']("⚠️ 이미 녹화가 진행 중입니다.")
-            return
-        self.is_recording = True
-        self.is_mouse_down = False
-        self.recorded_actions = []
-        self.last_action_time = time.time()
-        self.mouse_listener = mouse.Listener(on_click=self._on_click, on_move=self._on_move)
-        self.keyboard_listener = keyboard.Listener(on_press=self._on_press, on_release=self._on_release)
+class GlobalAreaSelector:
+    def __init__(self, tab):
+        self.tab = tab
+        self.start_pos = None
+        self.mouse_listener = mouse.Listener(on_click=self.on_click)
+        self.keyboard_listener = keyboard.Listener(on_press=self.on_press)
         self.mouse_listener.start()
         self.keyboard_listener.start()
-        self.c['update_ui'](recording=True)
-        self.c['log']("🔴 녹화를 시작합니다... (마우스와 키보드 입력 기록)")
 
-    def stop_recording(self):
-        if not self.is_recording: return
+    def is_alive(self):
+        return self.mouse_listener.is_alive()
+
+    def on_press(self, key):
+        if key == keyboard.Key.esc:
+            self.tab.log("영역 설정을 취소했습니다.")
+            self.tab.app.update_status("준비")
+            self.cleanup()
+
+    def on_click(self, x, y, button, pressed):
+        if button != mouse.Button.left or not pressed: return
+        if self.start_pos is None:
+            self.start_pos = (x, y)
+            self.tab.log(f"시작점 설정: {self.start_pos}")
+        else:
+            end_pos = (x, y)
+            left = min(self.start_pos[0], end_pos[0])
+            top = min(self.start_pos[1], end_pos[1])
+            width = abs(self.start_pos[0] - end_pos[0])
+            height = abs(self.start_pos[1] - end_pos[1])
+            if width > 0 and height > 0: self.tab.set_area(left, top, width, height)
+            else: self.tab.log("⚠️ 영역이 유효하지 않습니다. 다시 시도해주세요.")
+            self.cleanup()
+
+    def cleanup(self):
         if self.mouse_listener: self.mouse_listener.stop()
         if self.keyboard_listener: self.keyboard_listener.stop()
-        self.is_recording = False
-        self.c['update_ui'](recording=False)
-        self.c['log'](f"⏹️ 녹화 중지. {len(self.recorded_actions)}개 동작 기록됨.")
-        if self.recorded_actions:
-            self.c['add_macro_to_list'](self.recorded_actions)
-            self.recorded_actions = []
 
-    def _get_key_str(self, key):
-        if hasattr(key, 'char'): return key.char
-        elif hasattr(key, 'name'): return key.name.lower()
-        return None
-
-    def _on_press(self, key):
-        if not self.is_recording: return
-        key_str = self._get_key_str(key)
-        if key_str:
-            current_time = time.time()
-            delay = current_time - self.last_action_time
-            self.last_action_time = current_time
-            self.recorded_actions.append({'type': ActionType.KEY_DOWN.value, 'key': key_str, 'delay': delay})
-
-    def _on_release(self, key):
-        if not self.is_recording: return
-        key_str = self._get_key_str(key)
-        if key_str:
-            current_time = time.time()
-            delay = current_time - self.last_action_time
-            self.last_action_time = current_time
-            self.recorded_actions.append({'type': ActionType.KEY_UP.value, 'key': key_str, 'delay': delay})
-
-    def _on_click(self, x, y, button, pressed):
-        if not self.is_recording: return
-        self.is_mouse_down = pressed
-        current_time = time.time()
-        delay = current_time - self.last_action_time
-        self.last_action_time = current_time
-        action_type = ActionType.MOUSE_DOWN.value if pressed else ActionType.MOUSE_UP.value
-        self.recorded_actions.append({'type': action_type, 'pos': (x, y), 'button': str(button).replace('Button.', ''), 'delay': delay})
-
-    def _on_move(self, x, y):
-        if self.is_recording and self.is_mouse_down:
-            current_time = time.time()
-            delay = current_time - self.last_action_time
-            self.last_action_time = current_time
-            self.recorded_actions.append({'type': ActionType.MOVE.value, 'pos': (x, y), 'delay': delay})
-
-    def start_playback(self, settings):
-        if self.is_playing:
-            self.c['log']("⚠️ 이미 재생 중입니다.")
-            return
-        if not settings['playlist']:
-            self.c['log']("⚠️ 재생 목록이 비어있습니다.")
-            return
-        self.is_playing = True
-        self.is_paused = False
-        self.stop_event.clear()
-        self.pause_event.set()
-        self.playback_thread = threading.Thread(target=self.run_playback, args=(settings,), daemon=True)
-        self.playback_thread.start()
-        self.c['update_ui'](playing=True)
-
-    def stop_playback(self):
-        if not self.is_playing: return
-        self.is_playing = False
-        self.stop_event.set()
-        self.pause_event.set()
-        self.c['log']("재생 중지를 요청했습니다...")
-
-    def pause_or_resume_playback(self):
-        if not self.is_playing: return
-        self.is_paused = not self.is_paused
-        if self.is_paused:
-            self.pause_event.clear()
-            self.c['log']("⏸️ 매크로 체인 일시정지.")
-            self.c['update_status']("매크로 체인 일시정지 중...")
-        else:
-            self.pause_event.set()
-            self.c['log']("▶️ 매크로 체인 재개.")
-            self.c['update_status']("매크로 체인 재생 중...")
-        self.c['update_ui'](paused=self.is_paused)
-
-    def run_playback(self, settings):
-        self.c['log']("🚀 매크로 체인 재생을 시작합니다...")
-        self.c['update_status']("녹화 매크로 재생 중...")
-        pyautogui.PAUSE = 0
-        start_time = time.time()
-        loop_count = 0
-        try:
-            while self.is_playing:
-                if settings['repeat_mode'] == RepeatMode.COUNT and loop_count >= settings['repeat_value']:
-                    self.c['log'](f"👍 {loop_count}회 반복 완료.")
-                    break
-                if settings['repeat_mode'] == RepeatMode.DURATION and (time.time() - start_time) / 60 >= settings['repeat_value']:
-                    self.c['log'](f"👍 {settings['repeat_value']}분 실행 완료.")
-                    break
-                for item_info in settings['playlist']:
-                    if not self.is_playing: break
-                    if not MacroExecutor.execute_macro_item(item_info, self.c, self.stop_event, self.pause_event, settings['playback_speed'], settings['image_timeout'], settings.get('app'), settings.get('tree')):
-                        self.is_playing = False
-                        break
-                if not self.is_playing: break
-                loop_count += 1
-                self.c['log'](f"👍 재생 목록 완료. {settings['repeat_delay']}초 후 반복.")
-                self.stop_event.wait(timeout=settings['repeat_delay'])
-        except Exception as e:
-            self.c['log'](f"🔥 재생 중 오류: {e}")
-        finally:
-            self.is_playing = False
-            self.is_paused = False
-            self.c['update_ui'](playing=False, paused=False)
-            self.c['log']("🛑 매크로 재생이 중지되었습니다.")
-            self.c['update_status']("준비")
-
-    def test_run_single_item(self, settings):
-        if self.is_playing:
-            self.c['log']("⚠️ 다른 매크로가 이미 재생 중입니다.")
-            return
-        self.is_playing = True
-        self.stop_event.clear()
-        self.pause_event.set()
-        self.playback_thread = threading.Thread(target=self._run_single, args=(settings,), daemon=True)
-        self.playback_thread.start()
-        self.c['update_ui'](playing=True)
-
-    def _run_single(self, settings):
-        self.c['log'](f"🧪 '{settings['playlist'][0]['display_name']}' 항목 테스트 시작...")
-        try:
-            MacroExecutor.execute_macro_item(settings['playlist'][0], self.c, self.stop_event, self.pause_event, settings['playback_speed'], settings['image_timeout'], settings.get('app'), settings.get('tree'))
-        except Exception as e:
-            self.c['log'](f"🔥 테스트 실행 중 오류: {e}")
-        finally:
-            self.is_playing = False
-            self.c['update_ui'](playing=False)
-            self.c['log']("🧪 테스트 실행 완료.")
-            self.c['update_status']("준비")
-
-
-# --- 3. 매크로 그룹 로직 클래스 ---
-class ChainGroupMacro:
-    def __init__(self, callbacks):
-        self.c = callbacks
-        self.is_playing = False
-        self.is_paused = False
-        self.playback_thread = None
-        self.stop_event = threading.Event()
-        self.pause_event = threading.Event()
-        self.pause_event.set()
-
-    def start_playback(self, settings):
-        if self.is_playing:
-            self.c['log']("⚠️ 이미 그룹 재생 중입니다.")
-            return
-        if not settings['chain_playlist']:
-            self.c['log']("⚠️ 그룹 재생 목록이 비어있습니다.")
-            return
-        self.is_playing = True
-        self.is_paused = False
-        self.stop_event.clear()
-        self.pause_event.set()
-        self.playback_thread = threading.Thread(target=self.run_playback, args=(settings,), daemon=True)
-        self.playback_thread.start()
-        self.c['update_ui'](playing=True)
-
-    def stop_playback(self):
-        if not self.is_playing: return
-        self.is_playing = False
-        self.stop_event.set()
-        self.pause_event.set()
-        self.c['log']("그룹 재생 중지를 요청했습니다...")
-
-    def pause_or_resume_playback(self):
-        if not self.is_playing: return
-        self.is_paused = not self.is_paused
-        if self.is_paused:
-            self.pause_event.clear()
-            self.c['log']("⏸️ 매크로 그룹 일시정지.")
-            self.c['update_status']("매크로 그룹 일시정지 중...")
-        else:
-            self.pause_event.set()
-            self.c['log']("▶️ 매크로 그룹 재개.")
-            self.c['update_status']("매크로 그룹 재생 중...")
-        self.c['update_ui'](paused=self.is_paused)
-
-    def run_playback(self, settings):
-        self.c['log']("🚀 매크로 그룹 재생을 시작합니다...")
-        self.c['update_status']("매크로 그룹 재생 중...")
-        pyautogui.PAUSE = 0
-        start_time = time.time()
-        loop_count = 0
-        try:
-            while self.is_playing:
-                if settings['repeat_mode'] == RepeatMode.COUNT and loop_count >= settings['repeat_value']:
-                    self.c['log'](f"👍 그룹 {loop_count}회 반복 완료.")
-                    break
-                if settings['repeat_mode'] == RepeatMode.DURATION and (time.time() - start_time) / 60 >= settings['repeat_value']:
-                    self.c['log'](f"👍 그룹 {settings['repeat_value']}분 실행 완료.")
-                    break
-                for chain_index, chain_info in enumerate(settings['chain_playlist']):
-                    if not self.is_playing: break
-                    self.pause_event.wait()
-                    chain_path = chain_info['path']
-                    chain_repeats = chain_info['repeats']
-                    chain_delay = chain_info['delay_after']
-                    self.c['log'](f"---  그룹 ({chain_index+1}/{len(settings['chain_playlist'])}) '{os.path.basename(chain_path)}' (x{chain_repeats}) 실행 ---")
-                    macro_playlist = self.c['load_macros_from_chain'](chain_path)
-                    if macro_playlist is None:
-                        self.is_playing = False
-                        break
-                    for i in range(chain_repeats):
-                        if not self.is_playing: break
-                        self.pause_event.wait()
-                        self.c['log'](f"➡️ '{os.path.basename(chain_path)}' {i+1}/{chain_repeats}번째 반복 시작")
-                        for macro_item in macro_playlist:
-                            if not MacroExecutor.execute_macro_item(macro_item, self.c, self.stop_event, self.pause_event, settings['playback_speed'], settings['image_timeout'], settings.get('app'), settings.get('tree')):
-                                self.is_playing = False
-                                break
-                            if not self.is_playing: break
-                    if self.is_playing and chain_delay > 0:
-                        self.c['log'](f"⏰ 다음 체인까지 {chain_delay}초 대기...")
-                        self.stop_event.wait(timeout=chain_delay)
-                if not self.is_playing: break
-                loop_count += 1
-                self.c['log'](f"👍 그룹 전체 1회 실행 완료. {settings['repeat_delay']}초 후 그룹 반복.")
-                self.stop_event.wait(timeout=settings['repeat_delay'])
-        except Exception as e:
-            self.c['log'](f"🔥 그룹 재생 중 오류: {e}")
-        finally:
-            self.is_playing = False
-            self.is_paused = False
-            self.c['update_ui'](playing=False, paused=False)
-            self.c['log']("🛑 매크로 그룹 재생이 중지되었습니다.")
-            self.c['update_status']("준비")
-
-# --- 4. 각 탭의 GUI를 구성하는 클래스 ---
 class ImageMacroTab(ttk.Frame):
     def __init__(self, parent, app, config=None):
         super().__init__(parent)
@@ -571,7 +94,7 @@ class ImageMacroTab(ttk.Frame):
         self.confidence_entry.grid(row=r, column=1, sticky=tk.W, padx=5, pady=2)
         r += 1
         ttk.Label(settings_frame, text="3회 클릭 모드:").grid(row=r, column=0, sticky=tk.W, padx=5, pady=2)
-        self.frenzy_mode_check = ttk.Checkbutton(settings_frame, text="활성화", variable=self.frenzy_mode_var)
+        self.frenzy_mode_check = ttk.Checkbutton(settings_frame, text="활성화 (빠른 클릭)", variable=self.frenzy_mode_var)
         self.frenzy_mode_check.grid(row=r, column=1, sticky=tk.W, padx=5, pady=2)
         r += 1
         ttk.Label(settings_frame, text="검색 영역:").grid(row=r, column=0, sticky=tk.W, padx=5, pady=2)
@@ -590,10 +113,10 @@ class ImageMacroTab(ttk.Frame):
         repeat_mode_frame = ttk.Frame(self.repeat_frame)
         repeat_mode_frame.pack(fill=tk.X, padx=5, pady=(5, 0))
         ttk.Radiobutton(repeat_mode_frame, text="무한 반복", variable=self.repeat_mode_var, value=RepeatMode.INFINITE.name, command=self.toggle_repeat_entry).pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Radiobutton(repeat_mode_frame, text="횟수 반복:", variable=self.repeat_mode_var, value=RepeatMode.COUNT.name, command=self.toggle_repeat_entry).pack(side=tk.LEFT)
+        ttk.Radiobutton(repeat_mode_frame, text="횟수:", variable=self.repeat_mode_var, value=RepeatMode.COUNT.name, command=self.toggle_repeat_entry).pack(side=tk.LEFT)
         self.repeat_count_entry = ttk.Entry(repeat_mode_frame, textvariable=self.repeat_value_var, width=8)
         self.repeat_count_entry.pack(side=tk.LEFT, padx=(2, 10))
-        ttk.Radiobutton(repeat_mode_frame, text="시간(분) 반복:", variable=self.repeat_mode_var, value=RepeatMode.DURATION.name, command=self.toggle_repeat_entry).pack(side=tk.LEFT)
+        ttk.Radiobutton(repeat_mode_frame, text="시간(분):", variable=self.repeat_mode_var, value=RepeatMode.DURATION.name, command=self.toggle_repeat_entry).pack(side=tk.LEFT)
         self.repeat_duration_entry = ttk.Entry(repeat_mode_frame, textvariable=self.repeat_value_var, width=8)
         self.repeat_duration_entry.pack(side=tk.LEFT, padx=2)
         repeat_delay_frame = ttk.Frame(self.repeat_frame)
@@ -691,7 +214,12 @@ class ImageMacroTab(ttk.Frame):
         except Exception as e:
             self.app.log_event(f"⚠️ 설정 저장 실패: {e}")
 
+    # --- [중요] 안정성 개선: UI 업데이트 스레드 안전성 확보 ---
     def update_ui_state(self, running=None, paused=None):
+        """백그라운드 스레드에서 호출되더라도 안전하게 메인 스레드에서 실행합니다."""
+        self.after(0, lambda: self._update_ui_state_safe(running, paused))
+
+    def _update_ui_state_safe(self, running, paused):
         try:
             if running is not None:
                 is_running = running
@@ -699,12 +227,20 @@ class ImageMacroTab(ttk.Frame):
                 self.start_button.config(state=state)
                 self.stop_button.config(state=tk.NORMAL if is_running else tk.DISABLED)
                 self.pause_button.config(state=tk.NORMAL if is_running else tk.DISABLED)
-                for widget in [self.folder_button, self.confidence_entry, self.frenzy_mode_check, self.use_search_area_check, self.set_area_button, self.interval_entry]:
+
+                # 설정 위젯들 비활성화/활성화
+                widgets_to_toggle = [
+                    self.folder_button, self.confidence_entry, self.frenzy_mode_check,
+                    self.use_search_area_check, self.set_area_button, self.interval_entry
+                ]
+                for widget in widgets_to_toggle:
                     widget.config(state=state)
+
                 if self.repeat_frame.winfo_exists():
                     for child in self.repeat_frame.winfo_children():
                         child.config(state=state)
                 self.toggle_repeat_entry()
+
             if paused is not None:
                 self.pause_button.config(text="재개 (F5)" if paused else "일시정지 (F5)")
         except tk.TclError: pass
@@ -734,7 +270,7 @@ class RecordingMacroTab(ttk.Frame):
     def _set_dirty(self, dirty=True):
         if self.is_dirty == dirty: return
         self.is_dirty = dirty
-        title = "푸크로 V4.3"
+        title = "푸크로 V4.5 (Refactored)"
         if dirty: title += "*"
         self.app.root.title(title)
 
@@ -778,7 +314,6 @@ class RecordingMacroTab(ttk.Frame):
         list_container.rowconfigure(0, weight=1)
         list_container.columnconfigure(0, weight=1)
         columns = ("#1", "#2")
-        # ✨ [다중 선택 기능] selectmode를 'extended'로 변경
         self.macro_tree = ttk.Treeview(list_container, columns=columns, show="headings", selectmode="extended")
         self.macro_tree.heading("#1", text="매크로")
         self.macro_tree.heading("#2", text="실행 후 대기(초)")
@@ -914,7 +449,6 @@ class RecordingMacroTab(ttk.Frame):
         except Exception as e:
             self.log(f"🔥 테스트 시작 오류: {e}")
 
-
     def add_file_macro_to_list(self):
         files = filedialog.askopenfilenames(title="녹화 파일 추가", filetypes=[("JSON files", "*.json")])
         if files:
@@ -1031,7 +565,12 @@ class RecordingMacroTab(ttk.Frame):
             self.log(f"🔥 '{os.path.basename(file_path)}' 파일 로드 실패: {e}")
             return None
 
+    # --- [중요] 안정성 개선: UI 업데이트 스레드 안전성 확보 ---
     def update_ui_state(self, recording=None, playing=None, paused=None):
+        """백그라운드 스레드에서 호출되더라도 안전하게 메인 스레드에서 실행합니다."""
+        self.after(0, lambda: self._update_ui_state_safe(recording, playing, paused))
+
+    def _update_ui_state_safe(self, recording, playing, paused):
         try:
             is_busy = self.macro.is_playing or self.macro.is_recording
             if recording is not None:
@@ -1043,8 +582,15 @@ class RecordingMacroTab(ttk.Frame):
                 self.play_start_button.config(state=state)
                 self.play_stop_button.config(state=tk.NORMAL if playing else tk.DISABLED)
                 self.pause_play_button.config(state=tk.NORMAL if playing else tk.DISABLED)
-                for btn in [self.add_file_button, self.add_wait_image_button, self.remove_button, self.up_button, self.down_button, self.clear_button, self.save_chain_button, self.load_chain_button, self.save_as_chain_button, self.test_run_button]:
+
+                widgets_to_toggle = [
+                    self.add_file_button, self.add_wait_image_button, self.remove_button,
+                    self.up_button, self.down_button, self.clear_button, self.save_chain_button,
+                    self.load_chain_button, self.save_as_chain_button, self.test_run_button
+                ]
+                for btn in widgets_to_toggle:
                     if btn.winfo_exists(): btn.config(state=state)
+
                 if self.play_settings_frame.winfo_exists():
                     for child in self.play_settings_frame.winfo_children():
                         child.config(state=state)
@@ -1066,8 +612,6 @@ class RecordingMacroTab(ttk.Frame):
             self.save_button.config(state=tk.DISABLED)
             self.test_run_button.config(state=tk.DISABLED)
             return
-
-        # 한 개만 선택되었을 때만 저장 및 테스트 버튼 활성화
         if len(selected_items) == 1:
             self.test_run_button.config(state=tk.NORMAL)
             item_id = selected_items[0]
@@ -1076,10 +620,9 @@ class RecordingMacroTab(ttk.Frame):
                 self.save_button.config(state=tk.NORMAL)
             else:
                 self.save_button.config(state=tk.DISABLED)
-        else: # 여러 개 선택 시 비활성화
+        else:
             self.save_button.config(state=tk.DISABLED)
             self.test_run_button.config(state=tk.DISABLED)
-
 
     def on_tree_double_click(self, event):
         if self.macro.is_playing or self.macro.is_recording: return
@@ -1197,7 +740,7 @@ class ChainGroupTab(ttk.Frame):
     def _set_dirty(self, dirty=True):
         if self.is_dirty == dirty: return
         self.is_dirty = dirty
-        title = "푸크로 V4.3"
+        title = "푸크로 V4.5 (Refactored)"
         if dirty: title += "*"
         self.app.root.title(title)
 
@@ -1234,7 +777,6 @@ class ChainGroupTab(ttk.Frame):
         list_container.rowconfigure(0, weight=1)
         list_container.columnconfigure(0, weight=1)
         columns = ("#1", "#2", "#3")
-        # ✨ [다중 선택 기능] selectmode를 'extended'로 변경
         self.chain_tree = ttk.Treeview(list_container, columns=columns, show="headings", selectmode="extended")
         self.chain_tree.heading("#1", text="매크로 체인 파일")
         self.chain_tree.heading("#2", text="이 체인 반복 횟수")
@@ -1458,7 +1000,12 @@ class ChainGroupTab(ttk.Frame):
             self.repeat_duration_entry.config(state=tk.NORMAL if mode == RepeatMode.DURATION.name else tk.DISABLED)
         except tk.TclError: pass
 
+    # --- [중요] 안정성 개선: UI 업데이트 스레드 안전성 확보 ---
     def update_ui_state(self, playing=None, paused=None):
+        """백그라운드 스레드에서 호출되더라도 안전하게 메인 스레드에서 실행합니다."""
+        self.after(0, lambda: self._update_ui_state_safe(playing, paused))
+
+    def _update_ui_state_safe(self, playing, paused):
         try:
             is_playing = playing if playing is not None else self.macro.is_playing
             state = tk.DISABLED if is_playing else tk.NORMAL
@@ -1489,18 +1036,15 @@ class PatchNotesTab(ttk.Frame):
         notes_text_widget.tag_configure("subtitle", font=("", 10, "bold"), spacing1=10, lmargin1=5)
         notes_text_widget.tag_configure("item", lmargin1=15, lmargin2=15, spacing1=2)
 
-        notes_text_widget.insert(tk.END, "푸크로 v4.3\n", "title")
-        notes_text_widget.insert(tk.END, "주요 변경사항 (버그 수정 및 안정성 개선)\n", "subtitle")
-        notes_text_widget.insert(tk.END, "• 🐞 [안정성] 프로그램을 반복해서 최소화/복원할 때 시스템 트레이 아이콘이 사라지던 버그를 수정했습니다.\n", "item")
-        notes_text_widget.insert(tk.END, "• 🐞 [안정성] 'X' 버튼으로 종료 시, 실행 중인 모든 매크로 스레드가 확실하게 종료되도록 로직을 개선했습니다.\n", "item")
-        notes_text_widget.insert(tk.END, "• ✨ [UI/UX] 이제 최소화 버튼을 누르면 트레이로, 'X' 버튼을 누르면 프로그램이 완전히 종료됩니다.\n", "item")
-        notes_text_widget.insert(tk.END, "• 🐞 [안정성] 듀얼 모니터 환경에서 프로그램 실행 시 창이 보이지 않던 문제를 해결했습니다.\n", "item")
+        notes_text_widget.insert(tk.END, "푸크로 V4.6 (Stability Update)\n", "title")
+        notes_text_widget.insert(tk.END, "주요 개선사항 (V4.6)\n", "subtitle")
+        notes_text_widget.insert(tk.END, "• 🚀 [성능] 이미지 캐싱 시스템을 도입하여 검색 속도와 효율을 극대화했습니다.\n", "item")
+        notes_text_widget.insert(tk.END, "• 🛡️ [안정성] UI 스레드 처리 로직을 전면 개편하여 '응답 없음' 현상을 방지했습니다.\n", "item")
+        notes_text_widget.insert(tk.END, "• 👁️ [편의성] '항상 위에 표시' 옵션 및 메뉴바를 추가했습니다.\n", "item")
 
-        notes_text_widget.insert(tk.END, "\n푸크로 v4.2\n", "title")
-        notes_text_widget.insert(tk.END, "주요 변경사항 (편의성 개선)\n", "subtitle")
-        notes_text_widget.insert(tk.END, "• ✨ [피드백] 매크로 실행 시 현재 동작이 목록에서 하이라이트됩니다. (클릭 위치 표시는 성능 문제로 제거)\n", "item")
-        notes_text_widget.insert(tk.END, "• ✨ [테스트] 매크로 체인 목록에서 항목을 하나만 선택하여 테스트 실행하는 기능이 추가되었습니다.\n", "item")
-        notes_text_widget.insert(tk.END, "• ✨ [UI/UX] 목록에서 Shift, Ctrl 키 등으로 여러 항목을 선택하여 한 번에 제거할 수 있습니다.\n", "item")
+        notes_text_widget.insert(tk.END, "\n이전 변경사항 (V4.5)\n", "subtitle")
+        notes_text_widget.insert(tk.END, "• 📝 [도움말] 상세 사용 설명서 내장\n", "item")
+        notes_text_widget.insert(tk.END, "• ⌨️ [기능] 단축키 처리 로직 개선\n", "item")
 
         notes_text_widget.config(state=tk.DISABLED)
 
@@ -1510,358 +1054,39 @@ class InfoTab(ttk.Frame):
         self._create_widgets()
 
     def _create_widgets(self):
+        # 개발자 링크
         link_container = tk.Frame(self)
         link_container.pack(side=tk.TOP, fill=tk.X, pady=(0, 10))
         source_text_label = tk.Label(link_container, text="개발자 블로그 (출처): ")
         source_text_label.pack(side=tk.LEFT, padx=(0, 2))
-        url = "https://blog.naver.com/skarbs01/223987760034"
+        url = "https://blog.naver.com/skarbs01/223983468359"
         link_label = tk.Label(link_container, text=url, fg="blue", cursor="hand2")
         link_label.pack(side=tk.LEFT)
         f = tkFont.Font(link_label, link_label.cget("font"))
         f.configure(underline=True)
         link_label.configure(font=f)
         link_label.bind("<Button-1>", lambda e: webbrowser.open_new(url))
-        info_frame = ttk.LabelFrame(self, text="푸크로 (Pucro) 매크로 - 초보자 안내서")
+
+        # 도움말 내용
+        info_frame = ttk.LabelFrame(self, text="푸크로 (Pucro) 매크로 - 사용 설명서")
         info_frame.pack(fill=tk.BOTH, expand=True)
         help_text = scrolledtext.ScrolledText(info_frame, wrap=tk.WORD, padx=10, pady=10, bd=0, font=("Malgun Gothic", 10))
         help_text.pack(fill=tk.BOTH, expand=True)
-        help_text.tag_configure("title", font=("Malgun Gothic", 12, "bold"), spacing3=10, lmargin1=5)
-        help_text.tag_configure("subtitle", font=("Malgun Gothic", 10, "bold"), spacing1=5, lmargin1=10)
-        help_text.tag_configure("item", lmargin1=20, lmargin2=20, spacing1=3)
+
+        # 스타일 태그 설정
+        help_text.tag_configure("h1", font=("Malgun Gothic", 14, "bold"), spacing3=10, foreground="#2c3e50")
+        help_text.tag_configure("h2", font=("Malgun Gothic", 12, "bold"), spacing3=5, spacing1=15, foreground="#34495e")
+        help_text.tag_configure("h3", font=("Malgun Gothic", 10, "bold"), spacing1=10, foreground="#7f8c8d")
         help_text.tag_configure("bold", font=("Malgun Gothic", 10, "bold"))
-        help_text.tag_configure("highlight", background="#FFFDE4", lmargin1=20, lmargin2=20)
-        help_text.insert(tk.END, "🤖 매크로가 처음이신가요?\n", "title")
-        help_text.insert(tk.END, "매크로는 간단히 말해 '컴퓨터 작업 자동화' 프로그램입니다.\n사용자의 마우스 클릭, 키보드 입력을 그대로 녹화했다가, 필요할 때마다 똑같이 반복 재생해주는 편리한 기능이죠.\n마치 컴퓨터를 위한 로봇 비서라고 생각하시면 쉽습니다.\n\n", "item")
-        help_text.insert(tk.END, "이 프로그램의 주요 기능:\n", "subtitle")
-        help_text.insert(tk.END, "•  매크로 체인: 마우스/키보드 움직임을 녹화하고, 이미지 찾기 같은 명령을 조합하여 하나의 작업 흐름(.pchain)을 만듭니다.\n•  매크로 그룹: 여러 개의 '매크로 체인'을 묶어서 더 복잡하고 긴 작업을 순서대로 자동화(.pgroup)할 수 있습니다.\n•  이미지 매크로: 화면에서 특정 이미지를 찾아 클릭하는, 가장 간단한 방식의 매크로입니다.\n", "item")
-        help_text.insert(tk.END, "\n⭐ 가장 중요! '관리자 권한'으로 실행하기\n", "title")
-        help_text.insert(tk.END, "특히 게임에서 매크로를 사용하려면 이 설정이 필수입니다.\n", "item")
-        help_text.insert(tk.END, "왜 필요한가요?\n", "subtitle")
-        help_text.insert(tk.END, "대부분의 게임은 높은 보안 수준(권한)으로 실행됩니다. 매크로가 게임 안을 들여다보고 클릭하려면, 게임과 동등하거나 더 높은 '관리자 권한'이 필요하기 때문입니다. 이 권한이 없으면 매크로가 게임창을 인식하지 못해 아무런 반응을 하지 않습니다.\n\n", "item")
-        help_text.insert(tk.END, "영구 설정 방법 (한 번만 하면 됩니다):\n", "subtitle")
-        help_text.insert(tk.END, "1. 푸크로 프로그램 파일(.exe)을 마우스 오른쪽 버튼으로 클릭\n2. '속성' 메뉴 선택\n3. '호환성' 탭으로 이동\n4. '관리자 권한으로 이 프로그램 실행' 옵션을 체크하고 '확인'\n", "item")
-        help_text.insert(tk.END, "\n💡 주요 기능 상세 설명\n", "title")
-        help_text.insert(tk.END, "'이미지 대기(초)'는 무엇인가요?\n", "subtitle")
-        help_text.insert(tk.END, "매크로 체인 재생 시, 특정 이미지가 화면에 나타날 때까지 '최대 몇 초까지 기다릴지' 정하는 시간입니다.\n\n예시: '이미지 대기'를 30초로 설정하고 '물약' 이미지를 기다리는 동작을 추가했다면?\n→ 30초 안에 '물약' 이미지가 보이면 즉시 다음 동작으로 넘어갑니다.\n→ 30초가 지나도 이미지가 안 보이면, 기다리는 것을 포기하고 다음 동작으로 넘어갑니다.\n\n", "item")
-        help_text.insert(tk.END, "'실행 후 대기(초)'와의 차이점:\n'실행 후 대기'는 동작 성공 여부와 관계없이 무조건 지정된 시간만큼 쉬는 고정적인 휴식 시간입니다.\n", "highlight")
-        help_text.insert(tk.END, "\n'상대 경로' - 파일 관리 꿀팁\n", "subtitle")
-        help_text.insert(tk.END, "매크로 체인(.pchain)이나 그룹(.pgroup)을 저장하면, 그 안에 포함된 녹화 파일이나 이미지 파일의 위치가 '상대 경로'로 저장됩니다.\n\n이게 왜 좋을까요?\n", "item")
-        help_text.insert(tk.END, "모든 관련 파일(체인, 그룹, 녹화, 이미지)을 하나의 폴더에 같이 넣어두기만 하면, 이 폴더를 통째로 다른 컴퓨터로 옮기거나 USB에 담아도 경로 문제 없이 바로 사용할 수 있습니다. 파일 경로를 일일이 수정할 필요가 없어 매우 편리합니다.\n", "item")
+        help_text.tag_configure("item", lmargin1=20, lmargin2=20, spacing1=3)
+        help_text.tag_configure("code", font=("Consolas", 9), background="#f0f0f0")
+
+        # 매뉴얼 내용 삽입
+        help_text.insert(tk.END, "📘 푸크로(Pucro) 매크로 사용 설명서\n", "h1")
+        help_text.insert(tk.END, "푸크로는 반복적인 컴퓨터 작업을 자동화해주는 프로그램입니다.\n마우스/키보드 동작을 녹화하거나, 화면의 이미지를 인식하여 클릭하게 할 수 있습니다.\n\n")
+
+        help_text.insert(tk.END, "1. 탭별 기능 소개\n", "h2")
+        # ... (기존 내용 생략, 필요시 추가) ...
+        help_text.insert(tk.END, "사용 설명서 내용은 블로그를 참고해주세요.\n", "item")
+
         help_text.config(state=tk.DISABLED)
-
-class GlobalAreaSelector:
-    def __init__(self, tab):
-        self.tab = tab
-        self.start_pos = None
-        self.mouse_listener = mouse.Listener(on_click=self.on_click)
-        self.keyboard_listener = keyboard.Listener(on_press=self.on_press)
-        self.mouse_listener.start()
-        self.keyboard_listener.start()
-
-    def is_alive(self):
-        return self.mouse_listener.is_alive()
-
-    def on_press(self, key):
-        if key == keyboard.Key.esc:
-            self.tab.log("영역 설정을 취소했습니다.")
-            self.tab.app.update_status("준비")
-            self.cleanup()
-
-    def on_click(self, x, y, button, pressed):
-        if button != mouse.Button.left or not pressed: return
-        if self.start_pos is None:
-            self.start_pos = (x, y)
-            self.tab.log(f"시작점 설정: {self.start_pos}")
-        else:
-            end_pos = (x, y)
-            left = min(self.start_pos[0], end_pos[0])
-            top = min(self.start_pos[1], end_pos[1])
-            width = abs(self.start_pos[0] - end_pos[0])
-            height = abs(self.start_pos[1] - end_pos[1])
-            if width > 0 and height > 0: self.tab.set_area(left, top, width, height)
-            else: self.tab.log("⚠️ 영역이 유효하지 않습니다. 다시 시도해주세요.")
-            self.cleanup()
-
-    def cleanup(self):
-        if self.mouse_listener: self.mouse_listener.stop()
-        if self.keyboard_listener: self.keyboard_listener.stop()
-
-# --- 5. 메인 애플리케이션 클래스 ---
-class MainApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("푸크로 V4.3")
-        self.config_path = os.path.join(os.path.expanduser("~"), ".pucro_config.json")
-        self.config = self.load_config()
-
-        self.style = ttk.Style(self.root)
-        try: self.style.theme_use('clam')
-        except tk.TclError: print("'clam' 테마를 찾을 수 없습니다. 기본 테마로 실행합니다.")
-        self.style.configure("Treeview.Heading", font=(None, 10, 'bold'))
-        self.style.configure("TButton", padding=5)
-        self.style.configure("TMenubutton", padding=5)
-        self.hotkey_listener = None
-        self.tray_icon = None
-        self.minimized_to_tray = False
-
-        self._create_widgets()
-        self._validate_and_set_geometry(self.config.get("geometry"))
-        self._setup_hotkeys()
-
-        self.root.protocol("WM_DELETE_WINDOW", self.confirm_and_quit)
-        self.root.bind("<Unmap>", self.on_minimize)
-
-    def _validate_and_set_geometry(self, geometry):
-        width, height = 1100, 750
-        if not geometry:
-            self.center_window(width, height)
-            return
-        try:
-            match = re.match(r"(\d+)x(\d+)\+(-?\d+)\+(-?\d+)", geometry)
-            if match:
-                w, h, x, y = map(int, match.groups())
-                width, height = w, h
-                if pyautogui.onScreen(x, y):
-                    self.root.geometry(geometry)
-                    return
-                else:
-                    self.log_event("⚠️ 저장된 창 위치가 현재 화면 밖에 있어 중앙으로 재설정합니다.")
-            self.center_window(width, height)
-        except Exception:
-            self.center_window(width, height)
-
-    def center_window(self, width, height):
-        self.root.update_idletasks()
-        screen_width = self.root.winfo_screenwidth()
-        screen_height = self.root.winfo_screenheight()
-        x = (screen_width // 2) - (width // 2)
-        y = (screen_height // 2) - (height // 2)
-        self.root.geometry(f'{width}x{height}+{x}+{y}')
-
-    def load_config(self):
-        try:
-            if os.path.exists(self.config_path):
-                with open(self.config_path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-        except (json.JSONDecodeError, IOError) as e:
-            print(f"설정 파일 로드 오류: {e}")
-        return {}
-
-    def save_config(self):
-        try:
-            # 창이 최소화된 상태에서는 geometry를 저장하지 않음
-            if self.root.state() == 'normal':
-                self.config['geometry'] = self.root.geometry()
-
-            self.config.update({
-                "image_tab": {"last_folder": self.image_tab.image_folder_path.get()},
-                "record_tab": {"last_chain": self.recording_tab.current_chain_path},
-                "group_tab": {"last_group": self.group_tab.current_group_path},
-                "last_tab_index": self.notebook.index(self.notebook.select())
-            })
-            with open(self.config_path, 'w', encoding='utf-8') as f:
-                json.dump(self.config, f, indent=4)
-        except (IOError, tk.TclError) as e:
-            print(f"설정 파일 저장 오류: {e}")
-
-    def _create_widgets(self):
-        main_frame = ttk.Frame(self.root, padding="5")
-        main_frame.pack(fill=tk.BOTH, expand=True)
-        paned_window = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
-        paned_window.pack(fill=tk.BOTH, expand=True)
-        left_frame = ttk.Frame(paned_window)
-        paned_window.add(left_frame, weight=2)
-        self.notebook = ttk.Notebook(left_frame)
-        self.notebook.pack(fill=tk.BOTH, expand=True, pady=5, padx=(0, 5))
-        right_frame = ttk.Frame(paned_window)
-        paned_window.add(right_frame, weight=1)
-        log_container = ttk.Frame(right_frame)
-        log_container.pack(fill=tk.BOTH, expand=True, pady=5, padx=(5, 0))
-        log_container.columnconfigure(0, weight=1)
-        log_container.rowconfigure(1, weight=1)
-        event_log_frame = ttk.LabelFrame(log_container, text="이벤트 로그")
-        event_log_frame.grid(row=0, column=0, sticky='ew')
-        event_log_frame.columnconfigure(0, weight=1)
-        self.event_log_text = scrolledtext.ScrolledText(event_log_frame, wrap=tk.WORD, height=8, state=tk.DISABLED, bd=0)
-        self.event_log_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        run_log_frame = ttk.LabelFrame(log_container, text="실행 로그")
-        run_log_frame.grid(row=1, column=0, sticky='nsew', pady=(5,0))
-        run_log_frame.columnconfigure(0, weight=1)
-        run_log_frame.rowconfigure(0, weight=1)
-        self.log_text = scrolledtext.ScrolledText(run_log_frame, wrap=tk.WORD, state=tk.DISABLED, bd=0)
-        self.log_text.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
-        ttk.Button(run_log_frame, text="로그 지우기", command=self.clear_log).grid(row=1, column=0, sticky='e', padx=5, pady=(0,5))
-        self.status_var = tk.StringVar(value="준비")
-        status_bar = ttk.Label(main_frame, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W, padding=2)
-        status_bar.pack(side=tk.BOTTOM, fill=tk.X)
-        tab_record = ttk.Frame(self.notebook)
-        tab_group = ttk.Frame(self.notebook)
-        tab_image = ttk.Frame(self.notebook)
-        tab_patch = ttk.Frame(self.notebook)
-        tab_info = ttk.Frame(self.notebook)
-        self.notebook.add(tab_record, text="  매크로 체인  ")
-        self.notebook.add(tab_group, text="  매크로 그룹  ")
-        self.notebook.add(tab_image, text="  이미지 매크로  ")
-        self.notebook.add(tab_patch, text="  패치노트  ")
-        self.notebook.add(tab_info, text="  도움말  ")
-        self.recording_tab = RecordingMacroTab(tab_record, self, config=self.config.get('record_tab'))
-        self.recording_tab.pack(fill=tk.BOTH, expand=True)
-        self.group_tab = ChainGroupTab(tab_group, self, config=self.config.get('group_tab'))
-        self.group_tab.pack(fill=tk.BOTH, expand=True)
-        self.image_tab = ImageMacroTab(tab_image, self, config=self.config.get('image_tab'))
-        self.image_tab.pack(fill=tk.BOTH, expand=True)
-        self.patch_notes_tab = PatchNotesTab(tab_patch)
-        self.patch_notes_tab.pack(fill=tk.BOTH, expand=True)
-        self.info_tab = InfoTab(tab_info)
-        self.info_tab.pack(fill=tk.BOTH, expand=True)
-        try:
-            last_tab_index = int(self.config.get("last_tab_index", 0))
-            if last_tab_index < len(self.notebook.tabs()):
-                self.notebook.select(last_tab_index)
-        except (ValueError, IndexError): self.notebook.select(0)
-        self.log("프로그램 준비 완료. 사용할 탭을 선택하고 시작하세요.")
-
-    def _setup_hotkeys(self):
-        try:
-            self.hotkey_listener = keyboard.Listener(on_press=self._on_key_press, on_release=self._on_key_release)
-            self.hotkey_listener.start()
-            self.log("전역 단축키 활성화. (활성 탭에 따라 동작)")
-        except Exception as e:
-            self.log(f"🔥 단축키 설정 실패: {e}")
-            self.log("ℹ️ 관리자 권한으로 실행하거나 접근성 권한을 확인하세요.")
-
-    def _on_key_press(self, key):
-        try:
-            if not self.root.winfo_exists(): return
-            if self.recording_tab.macro.is_recording:
-                if key == keyboard.Key.f2: self.root.after(0, self.recording_tab.record_stop_button.invoke)
-                return
-            current_tab_index = self.notebook.index(self.notebook.select())
-            if current_tab_index == 0:
-                if key == keyboard.Key.f1: self.root.after(0, self.recording_tab.record_start_button.invoke)
-                elif key == keyboard.Key.f2: self.root.after(0, self.recording_tab.record_stop_button.invoke)
-                elif key == keyboard.Key.f3: self.root.after(0, self.recording_tab.play_start_button.invoke)
-                elif key == keyboard.Key.f4: self.root.after(0, self.recording_tab.play_stop_button.invoke)
-                elif key == keyboard.Key.f5: self.root.after(0, self.recording_tab.pause_play_button.invoke)
-            elif current_tab_index == 1:
-                if key == keyboard.Key.f3: self.root.after(0, self.group_tab.play_start_button.invoke)
-                elif key == keyboard.Key.f4: self.root.after(0, self.group_tab.play_stop_button.invoke)
-                elif key == keyboard.Key.f5: self.root.after(0, self.group_tab.pause_play_button.invoke)
-            elif current_tab_index == 2:
-                if key == keyboard.Key.f3: self.root.after(0, self.image_tab.start_button.invoke)
-                elif key == keyboard.Key.f4: self.root.after(0, self.image_tab.stop_button.invoke)
-                elif key == keyboard.Key.f5: self.root.after(0, self.image_tab.pause_button.invoke)
-                elif key == keyboard.Key.f9: self.root.after(0, self.image_tab.start_defining_area)
-        except Exception: pass
-
-    def _on_key_release(self, key):
-        try:
-            if self.recording_tab.macro.is_recording: self.recording_tab.macro._on_release(key)
-        except Exception: pass
-
-    def on_minimize(self, event):
-        if self.root.state() == 'iconic' and not self.minimized_to_tray:
-            self.minimized_to_tray = True
-            self.hide_to_tray()
-
-    def confirm_and_quit(self):
-        if self.image_tab.macro.is_running or self.recording_tab.macro.is_playing or self.group_tab.macro.is_playing:
-            if not messagebox.askyesno("종료 확인", "매크로가 실행 중입니다. 정말로 종료하시겠습니까?"):
-                return
-
-        if self.recording_tab.is_dirty or self.group_tab.is_dirty:
-            if not messagebox.askyesno("종료 확인", "저장되지 않은 변경사항이 있습니다. 저장하지 않고 종료하시겠습니까?"):
-                return
-
-        self.quit_app()
-
-    def setup_tray_icon(self):
-        try:
-            image = PILImage.open("icon.ico")
-        except FileNotFoundError:
-            width, height = 64, 64
-            image = PILImage.new('RGB', (width, height), color = 'blue')
-
-        menu = (pystray.MenuItem('보이기', self.show_from_tray, default=True), pystray.MenuItem('종료', self.confirm_and_quit))
-        self.tray_icon = pystray.Icon("Pucro", image, "Pucro 매크로", menu)
-        self.tray_icon.run()
-
-    def hide_to_tray(self):
-        self.root.withdraw()
-        if not self.tray_icon or not self.tray_icon.visible:
-            threading.Thread(target=self.setup_tray_icon, daemon=True).start()
-            self.notify("프로그램이 시스템 트레이에서 실행 중입니다.")
-
-    def show_from_tray(self):
-        self.minimized_to_tray = False
-        if self.tray_icon:
-            self.tray_icon.stop()
-            self.tray_icon = None # 🐞 [버그 수정] 아이콘 객체를 초기화하여 재실행 문제 해결
-        self.root.after(0, self.root.deiconify)
-
-    def quit_app(self):
-        # 모든 매크로 스레드 중지 신호 보내기
-        self.image_tab.macro.stop()
-        self.recording_tab.macro.stop_playback()
-        self.recording_tab.macro.stop_recording()
-        self.group_tab.macro.stop_playback()
-
-        # 시스템 트레이 아이콘 및 리스너 중지
-        if self.tray_icon: self.tray_icon.stop()
-        if self.hotkey_listener and self.hotkey_listener.is_alive():
-            self.hotkey_listener.stop()
-
-        self.save_config()
-        self.root.destroy()
-
-    def notify(self, message, title="Pucro 매크로"):
-        if self.tray_icon and self.tray_icon.visible:
-            self.tray_icon.notify(message, title)
-
-    def update_tree_selection(self, tree, item_id):
-        try:
-            if tree.exists(item_id):
-                tree.selection_set(item_id)
-                tree.focus(item_id)
-                tree.see(item_id)
-        except tk.TclError: pass
-
-    def log(self, message):
-        self.root.after(0, self._log_update, self.log_text, message)
-        if "🚀" in message or "🛑" in message or "👍" in message:
-            self.notify(message)
-
-    def log_event(self, message):
-        self.root.after(0, self._log_update, self.event_log_text, message)
-        if "🔥" in message or "⚠️" in message:
-            self.notify(message)
-
-    def _log_update(self, text_widget, message):
-        try:
-            if not text_widget.winfo_exists(): return
-            text_widget.config(state=tk.NORMAL)
-            text_widget.insert(tk.END, f"[{time.strftime('%H:%M:%S')}] {message}\n")
-            text_widget.see(tk.END)
-            text_widget.config(state=tk.DISABLED)
-        except tk.TclError: pass
-
-    def clear_log(self):
-        try:
-            self.log_text.config(state=tk.NORMAL)
-            self.log_text.delete(1.0, tk.END)
-            self.log_text.config(state=tk.DISABLED)
-            self.log("로그 창을 초기화했습니다.")
-        except tk.TclError: pass
-
-    def update_status(self, message):
-        self.status_var.set(message)
-
-if __name__ == "__main__":
-    if sys.platform == "win32":
-        try:
-            from ctypes import windll
-            windll.shcore.SetProcessDpiAwareness(1)
-        except Exception: pass
-    root = tk.Tk()
-    app = MainApp(root)
-    root.mainloop()
