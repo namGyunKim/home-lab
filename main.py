@@ -15,7 +15,14 @@ class MainApp:
     def __init__(self, root):
         self.root = root
         self.root.title("푸크로 V4.6 (Stability Update)")
-        self.config_path = os.path.join(os.path.expanduser("~"), ".pucro_config.json")
+
+        # [수정] 설정 파일 경로를 실행 파일 기준 상대 경로(로컬)로 변경 (Portable 지원)
+        if getattr(sys, 'frozen', False):
+            self.base_dir = os.path.dirname(sys.executable)
+        else:
+            self.base_dir = os.path.dirname(os.path.abspath(__file__))
+
+        self.config_path = os.path.join(self.base_dir, "pucro_config.json")
         self.config = self.load_config()
 
         self._apply_theme()
@@ -127,10 +134,19 @@ class MainApp:
             if self.root.state() == 'normal':
                 self.config['geometry'] = self.root.geometry()
 
+            # [수정] 경로를 상대 경로로 변환하여 저장 (이식성 향상)
+            def to_rel(path):
+                if not path: return path
+                try:
+                    # 드라이브가 다르면 상대 경로 변환이 불가능하므로 원래 경로 반환
+                    return os.path.relpath(path, self.base_dir)
+                except ValueError:
+                    return path
+
             self.config.update({
-                "image_tab": {"last_folder": self.image_tab.image_folder_path.get()},
-                "record_tab": {"last_chain": self.recording_tab.current_chain_path},
-                "group_tab": {"last_group": self.group_tab.current_group_path},
+                "image_tab": {"last_folder": to_rel(self.image_tab.image_folder_path.get())},
+                "record_tab": {"last_chain": to_rel(self.recording_tab.current_chain_path)},
+                "group_tab": {"last_group": to_rel(self.group_tab.current_group_path)},
                 "last_tab_index": self.notebook.index(self.notebook.select()),
                 "always_on_top": self.always_on_top_var.get()
             })
@@ -214,6 +230,8 @@ class MainApp:
         self.notebook.add(tab_info, text="  도움말  ")
 
         # 각 탭 인스턴스 생성
+        # config는 load_config()에서 읽은 raw 딕셔너리.
+        # 각 탭 내부에서 상대 경로를 절대 경로로 변환하는 로직 수행 필요.
         self.recording_tab = RecordingMacroTab(tab_record, self, config=self.config.get('record_tab'))
         self.recording_tab.pack(fill=tk.BOTH, expand=True)
 

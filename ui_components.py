@@ -61,6 +61,10 @@ class ImageMacroTab(ttk.Frame):
         self._create_widgets()
         if config:
             last_folder = config.get('last_folder')
+            # [수정] 상대 경로로 저장된 경우 절대 경로로 변환
+            if last_folder and not os.path.isabs(last_folder):
+                last_folder = os.path.abspath(last_folder)
+
             if last_folder and os.path.isdir(last_folder):
                 self.image_folder_path.set(last_folder)
                 self.load_settings()
@@ -264,6 +268,10 @@ class RecordingMacroTab(ttk.Frame):
         self._create_widgets()
         if config:
             last_chain = config.get('last_chain')
+            # [수정] 상대 경로로 저장된 경우 절대 경로로 변환
+            if last_chain and not os.path.isabs(last_chain):
+                last_chain = os.path.abspath(last_chain)
+
             if last_chain and os.path.isfile(last_chain):
                 self.load_chain(path=last_chain)
 
@@ -493,6 +501,7 @@ class RecordingMacroTab(ttk.Frame):
             item_data = self.playlist_data.get(item_id)
             if not item_data: continue
             data_path = item_data['data']
+            # [상대 경로 처리] 체인 파일이 있는 폴더 기준으로 상대 경로 저장
             if item_data['type'] in [MacroType.FILE.value, MacroType.IMAGE_WAIT.value]:
                 try: data_path = os.path.relpath(data_path, chain_dir)
                 except ValueError: pass
@@ -530,6 +539,7 @@ class RecordingMacroTab(ttk.Frame):
             for item in chain_content.get('playlist', []):
                 item_type = item.get('type')
                 item_data = item.get('data')
+                # [상대 경로 처리] 파일 로드 시 절대 경로로 복원
                 if item_type in [MacroType.FILE.value, MacroType.IMAGE_WAIT.value] and not os.path.isabs(item_data):
                     item_data = os.path.join(chain_dir, item_data)
                 tags = ()
@@ -734,6 +744,10 @@ class ChainGroupTab(ttk.Frame):
         self._create_widgets()
         if config:
             last_group = config.get('last_group')
+            # [수정] 상대 경로로 저장된 경우 절대 경로로 변환
+            if last_group and not os.path.isabs(last_group):
+                last_group = os.path.abspath(last_group)
+
             if last_group and os.path.isfile(last_group):
                 self.load_group(path=last_group)
 
@@ -862,6 +876,7 @@ class ChainGroupTab(ttk.Frame):
             for item in chain_content.get('playlist', []):
                 item_type = item.get('type')
                 item_data = item.get('data')
+                # [상대 경로 처리] 체인 파일 로드 시 절대 경로로 복원
                 if item_type in [MacroType.FILE.value, MacroType.IMAGE_WAIT.value] and not os.path.isabs(item_data):
                     item_data = os.path.normpath(os.path.join(chain_dir, item_data))
                 playlist.append({'type': item_type, 'data': item_data, 'display_name': item.get('display_name'), 'delay': item.get('delay', '1.0')})
@@ -948,6 +963,7 @@ class ChainGroupTab(ttk.Frame):
         for item_id in self.chain_tree.get_children():
             chain_path = self.chain_playlist_data.get(item_id)
             if not chain_path: continue
+            # [상대 경로 처리] 그룹 파일이 있는 폴더 기준으로 상대 경로 저장
             try: rel_path = os.path.relpath(chain_path, group_dir)
             except ValueError: rel_path = chain_path
             group_item = {'path': rel_path, 'repeats': self.chain_tree.set(item_id, "#2"), 'delay_after': self.chain_tree.set(item_id, "#3")}
@@ -982,6 +998,7 @@ class ChainGroupTab(ttk.Frame):
             group_dir = os.path.dirname(file_path)
             for item in group_content.get('playlist', []):
                 chain_path = item.get('path')
+                # [상대 경로 처리] 로드 시 절대 경로로 복원
                 if not os.path.isabs(chain_path):
                     chain_path = os.path.normpath(os.path.join(group_dir, chain_path))
                 item_id = self.chain_tree.insert("", tk.END, values=(os.path.basename(chain_path), item.get('repeats', '1'), item.get('delay_after', '1.0')))
