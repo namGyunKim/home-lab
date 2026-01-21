@@ -84,10 +84,32 @@ def execute_image_scan(log_func, image_folder_path, stop_event, pause_event):
     except Exception as e:
         log_func(f"⚠️ config.json 로드 실패 (기본값 사용): {e}")
 
-    confidence = float(settings.get('confidence_level', 0.7))
-    interval = float(settings.get('click_interval', 0.1))
-    is_frenzy = settings.get('frenzy_mode', False)
-    search_region = tuple(settings['search_area_coords']) if settings.get('use_search_area') and settings.get('search_area_coords') else None
+    def _safe_float(val, default):
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return default
+
+    # 숫자 설정은 사용자가 직접 입력/수정할 수 있으므로 방어적으로 파싱
+    confidence = _safe_float(settings.get('confidence_level', 0.7), 0.7)
+    confidence = max(0.1, min(1.0, confidence))
+
+    interval = _safe_float(settings.get('click_interval', 0.1), 0.1)
+    interval = max(0.0, interval)
+
+    is_frenzy = bool(settings.get('frenzy_mode', False))
+
+    # 검색 영역(Region)도 형식/값 검증 후 사용
+    search_region = None
+    if bool(settings.get('use_search_area')) and settings.get('search_area_coords'):
+        coords = settings.get('search_area_coords')
+        if isinstance(coords, (list, tuple)) and len(coords) == 4:
+            try:
+                x, y, w, h = (int(coords[0]), int(coords[1]), int(coords[2]), int(coords[3]))
+                if w > 0 and h > 0:
+                    search_region = (x, y, w, h)
+            except Exception:
+                search_region = None
 
     # 이미지 파일 검색
     search_pattern = os.path.join(image_folder_path, 'image*.png')

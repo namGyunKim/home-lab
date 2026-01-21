@@ -9,6 +9,34 @@ from utils import get_cached_image
 # 안전장치 활성화
 pyautogui.FAILSAFE = True
 
+# --- 키 이름 정규화 (pynput -> pyautogui) ---
+# pynput에서 저장되는 키 이름과 pyautogui에서 기대하는 키 이름이 일부 다릅니다.
+# (예: ctrl_l -> ctrlleft)
+_KEY_NAME_MAP = {
+    'ctrl_l': 'ctrlleft',
+    'ctrl_r': 'ctrlright',
+    'alt_l': 'altleft',
+    'alt_r': 'altright',
+    'shift_l': 'shiftleft',
+    'shift_r': 'shiftright',
+    'cmd_l': 'winleft',
+    'cmd_r': 'winright',
+    'caps_lock': 'capslock',
+    'page_up': 'pageup',
+    'page_down': 'pagedown',
+    'print_screen': 'printscreen',
+    'scroll_lock': 'scrolllock',
+    'num_lock': 'numlock',
+}
+
+
+def _normalize_key_name(key_name):
+    if not isinstance(key_name, str):
+        return key_name
+    key_lower = key_name.lower()
+    return _KEY_NAME_MAP.get(key_lower, key_lower)
+
+
 # --- 매크로 실행 로직 ---
 
 class MacroExecutor:
@@ -101,7 +129,14 @@ class MacroExecutor:
 
                     # 속도 적용 (0으로 나누기 방지)
                     safe_speed = max(0.1, speed)
-                    delay = action.get('delay', 0) / safe_speed
+
+                    # 딜레이 값 방어적 파싱
+                    try:
+                        action_delay = float(action.get('delay', 0) or 0)
+                    except (TypeError, ValueError):
+                        action_delay = 0
+
+                    delay = action_delay / safe_speed
 
                     # 딜레이 대기 (긴 딜레이 중 중지 가능하도록)
                     end_wait = time.time() + delay
@@ -113,7 +148,7 @@ class MacroExecutor:
 
                     # [수정] 좌표 유효성 검사 (화면 밖 클릭 방지)
                     pos = action.get('pos')
-                    if pos:
+                    if pos and isinstance(pos, (list, tuple)) and len(pos) == 2:
                         x, y = pos
                         if not pyautogui.onScreen(x, y):
                             # 화면 밖이면 동작을 건너뛰거나 경고 (여기선 경고 후 진행 시도)
@@ -133,14 +168,18 @@ class MacroExecutor:
                     elif action_type == ActionType.MOUSE_UP.value:
                         pyautogui.mouseUp(button=action['button'])
                     elif action_type == ActionType.KEY_DOWN.value:
-                        pyautogui.keyDown(action['key'])
+                        pyautogui.keyDown(_normalize_key_name(action['key']))
                     elif action_type == ActionType.KEY_UP.value:
-                        pyautogui.keyUp(action['key'])
+                        pyautogui.keyUp(_normalize_key_name(action['key']))
 
             # 실행 후 대기 시간 처리
             if stop_event.is_set(): return False
 
-            item_delay = float(item_info.get('delay', 0))
+            try:
+                item_delay = float(item_info.get('delay', 0) or 0)
+            except (TypeError, ValueError):
+                callbacks['log'](f"⚠️ '{display_name}' 실행 후 대기값이 숫자가 아니어서 0초로 처리합니다: {item_info.get('delay')}")
+                item_delay = 0
             if item_delay > 0:
                 end_wait = time.time() + item_delay
                 while time.time() < end_wait:

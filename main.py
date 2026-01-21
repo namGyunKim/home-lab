@@ -14,7 +14,8 @@ from utils import clear_image_cache
 class MainApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("푸크로 V4.6 (Stability Update)")
+        self.title_base = "푸크로 V4.6 (Stability Update)"
+        self.root.title(self.title_base)
 
         # [수정] 설정 파일 경로를 실행 파일 기준 상대 경로(로컬)로 변경 (Portable 지원)
         if getattr(sys, 'frozen', False):
@@ -267,10 +268,10 @@ class MainApp:
     def _on_key_press(self, key):
         try:
             if not self.root.winfo_exists(): return
-
-            # 1. 녹화 중일 때의 우선 처리 (F2: 중지)
+            # 1. 녹화 중일 때의 우선 처리 (F2/ESC: 중지)
             if self.recording_tab.macro.is_recording:
-                if key == keyboard.Key.f2:
+                # 녹화 중지 키는 기록되지 않도록 여기서 먼저 처리합니다.
+                if key in (keyboard.Key.f2, keyboard.Key.esc):
                     self.root.after(0, self.recording_tab.record_stop_button.invoke)
                 return
 
@@ -297,12 +298,13 @@ class MainApp:
 
         except Exception:
             pass
-
     def _on_key_release(self, key):
-        try:
-            if self.recording_tab.macro.is_recording:
-                self.recording_tab.macro._on_release(key)
-        except Exception: pass
+        """키 릴리즈 이벤트 콜백.
+
+        NOTE: RecordingMacro는 자체 pynput 리스너로 on_release를 기록합니다.
+        여기서 다시 전달하면 KEY_UP 이벤트가 2번 기록될 수 있어 중복을 방지합니다.
+        """
+        return
 
     def confirm_and_quit(self):
         """종료 전 확인 및 정리"""

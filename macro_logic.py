@@ -172,6 +172,10 @@ class RecordingMacro:
 
     def _on_press(self, key):
         if not self.is_recording: return
+
+        # 녹화 중지 키(F2, ESC)는 기록하지 않음 (키가 눌린 상태로 남는 문제 방지)
+        if key in (keyboard.Key.f2, keyboard.Key.esc):
+            return
         key_str = self._get_key_str(key)
         if key_str:
             cur_time = time.time()

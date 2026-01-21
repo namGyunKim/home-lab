@@ -63,7 +63,8 @@ class ImageMacroTab(ttk.Frame):
             last_folder = config.get('last_folder')
             # [수정] 상대 경로로 저장된 경우 절대 경로로 변환
             if last_folder and not os.path.isabs(last_folder):
-                last_folder = os.path.abspath(last_folder)
+                # 설정은 app.base_dir 기준 상대 경로로 저장되므로, 복원도 동일 기준을 사용
+                last_folder = os.path.normpath(os.path.join(self.app.base_dir, last_folder))
 
             if last_folder and os.path.isdir(last_folder):
                 self.image_folder_path.set(last_folder)
@@ -270,7 +271,8 @@ class RecordingMacroTab(ttk.Frame):
             last_chain = config.get('last_chain')
             # [수정] 상대 경로로 저장된 경우 절대 경로로 변환
             if last_chain and not os.path.isabs(last_chain):
-                last_chain = os.path.abspath(last_chain)
+                # 설정은 app.base_dir 기준 상대 경로로 저장되므로, 복원도 동일 기준을 사용
+                last_chain = os.path.normpath(os.path.join(self.app.base_dir, last_chain))
 
             if last_chain and os.path.isfile(last_chain):
                 self.load_chain(path=last_chain)
@@ -278,8 +280,8 @@ class RecordingMacroTab(ttk.Frame):
     def _set_dirty(self, dirty=True):
         if self.is_dirty == dirty: return
         self.is_dirty = dirty
-        title = "푸크로 V4.5 (Refactored)"
-        if dirty: title += "*"
+        title = getattr(self.app, 'title_base', '푸크로')
+        if dirty: title += '*'
         self.app.root.title(title)
 
     def log(self, message):
@@ -746,7 +748,8 @@ class ChainGroupTab(ttk.Frame):
             last_group = config.get('last_group')
             # [수정] 상대 경로로 저장된 경우 절대 경로로 변환
             if last_group and not os.path.isabs(last_group):
-                last_group = os.path.abspath(last_group)
+                # 설정은 app.base_dir 기준 상대 경로로 저장되므로, 복원도 동일 기준을 사용
+                last_group = os.path.normpath(os.path.join(self.app.base_dir, last_group))
 
             if last_group and os.path.isfile(last_group):
                 self.load_group(path=last_group)
@@ -754,8 +757,8 @@ class ChainGroupTab(ttk.Frame):
     def _set_dirty(self, dirty=True):
         if self.is_dirty == dirty: return
         self.is_dirty = dirty
-        title = "푸크로 V4.5 (Refactored)"
-        if dirty: title += "*"
+        title = getattr(self.app, 'title_base', '푸크로')
+        if dirty: title += '*'
         self.app.root.title(title)
 
     def log(self, message):
