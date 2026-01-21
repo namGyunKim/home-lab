@@ -308,8 +308,14 @@ class MainApp:
 
     def confirm_and_quit(self):
         """종료 전 확인 및 정리"""
-        if self.image_tab.macro.is_running or self.recording_tab.macro.is_playing or self.group_tab.macro.is_playing:
-            if not messagebox.askyesno("종료 확인", "매크로가 실행 중입니다. 정말로 종료하시겠습니까?"):
+        # 실행/녹화 중에는 오동작(입력 중단, 데이터 유실) 가능성이 있어 종료 전 확인
+        if (
+                self.image_tab.macro.is_running
+                or self.recording_tab.macro.is_playing
+                or self.recording_tab.macro.is_recording
+                or self.group_tab.macro.is_playing
+        ):
+            if not messagebox.askyesno("종료 확인", "매크로가 실행 중이거나 녹화 중입니다. 정말로 종료하시겠습니까?"):
                 return
 
         if self.recording_tab.is_dirty or self.group_tab.is_dirty:
