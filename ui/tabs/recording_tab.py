@@ -148,7 +148,10 @@ class RecordingMacroTab(ttk.Frame):
         self.toggle_repeat_entry()
 
     def show_help(self):
-        self.app.notebook.select(4)
+        for tab_id in self.app.notebook.tabs():
+            if self.app.notebook.tab(tab_id, "text") == "도움말":
+                self.app.notebook.select(tab_id)
+                return
 
     def toggle_repeat_entry(self):
         try:

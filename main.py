@@ -8,14 +8,14 @@ import re
 import threading
 import pyautogui
 from pynput import keyboard
-from ui_components import RecordingMacroTab, ChainGroupTab, ImageMacroTab, PatchNotesTab, InfoTab
+from ui_components import RecordingMacroTab, ChainGroupTab, ImageMacroTab, InfoTab
 from utils import clear_image_cache
 
 # --- 메인 애플리케이션 클래스 (개선됨) ---
 class MainApp:
     def __init__(self, root):
         self.root = root
-        self.title_base = "푸크로 V4.6 (Stability Update)"
+        self.title_base = "푸크로 V4.7 (Readability Update)"
         self.root.title(self.title_base)
         self.root.minsize(1240, 820)
 
@@ -394,13 +394,11 @@ class MainApp:
         tab_record = ttk.Frame(self.notebook)
         tab_group = ttk.Frame(self.notebook)
         tab_image = ttk.Frame(self.notebook)
-        tab_patch = ttk.Frame(self.notebook)
         tab_info = ttk.Frame(self.notebook)
 
         self.notebook.add(tab_record, text="매크로 체인")
         self.notebook.add(tab_group, text="매크로 그룹")
         self.notebook.add(tab_image, text="이미지 매크로")
-        self.notebook.add(tab_patch, text="패치노트")
         self.notebook.add(tab_info, text="도움말")
 
         # 각 탭 인스턴스 생성
@@ -414,9 +412,6 @@ class MainApp:
 
         self.image_tab = ImageMacroTab(tab_image, self, config=self.config.get('image_tab'))
         self.image_tab.pack(fill=tk.BOTH, expand=True)
-
-        self.patch_notes_tab = PatchNotesTab(tab_patch)
-        self.patch_notes_tab.pack(fill=tk.BOTH, expand=True)
 
         self.info_tab = InfoTab(tab_info)
         self.info_tab.pack(fill=tk.BOTH, expand=True)
