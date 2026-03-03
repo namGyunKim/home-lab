@@ -316,7 +316,11 @@ class ChainGroupTab(ttk.Frame):
             self.play_stop_button.config(state=tk.NORMAL if is_playing else tk.DISABLED)
             self.pause_play_button.config(state=tk.NORMAL if is_playing else tk.DISABLED)
             for child in self.play_settings_frame.winfo_children():
-                if hasattr(child, 'config'): child.config(state=state)
+                if hasattr(child, 'config'):
+                    try:
+                        child.config(state=state)
+                    except tk.TclError:
+                        pass
             self.toggle_repeat_entry()
             if paused is not None:
                 self.pause_play_button.config(text="재개 (F5)" if paused else "일시정지 (F5)")
