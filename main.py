@@ -5,6 +5,7 @@ import sys
 import json
 import time
 import re
+import threading
 import pyautogui
 from pynput import keyboard
 from ui_components import RecordingMacroTab, ChainGroupTab, ImageMacroTab, PatchNotesTab, InfoTab
@@ -182,6 +183,7 @@ class MainApp:
 
         # 탭 생성 및 추가
         self._init_tabs()
+        self.refresh_title()
 
         # 마지막 탭 복원
         try:
@@ -374,8 +376,28 @@ class MainApp:
             self.log("로그 창을 초기화했습니다.")
         except tk.TclError: pass
 
+    def refresh_title(self):
+        title = self.title_base
+        has_dirty = False
+        if hasattr(self, 'recording_tab') and getattr(self.recording_tab, 'is_dirty', False):
+            has_dirty = True
+        if hasattr(self, 'group_tab') and getattr(self.group_tab, 'is_dirty', False):
+            has_dirty = True
+        if has_dirty:
+            title += '*'
+        try:
+            self.root.title(title)
+        except tk.TclError:
+            pass
+
     def update_status(self, message):
-        self.status_var.set(message)
+        try:
+            if threading.current_thread() is threading.main_thread():
+                self.status_var.set(message)
+            else:
+                self.root.after(0, self.status_var.set, message)
+        except (tk.TclError, RuntimeError):
+            pass
 
 if __name__ == "__main__":
     if sys.platform == "win32":

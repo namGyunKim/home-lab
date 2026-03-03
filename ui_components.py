@@ -3,6 +3,7 @@ from tkinter import ttk, scrolledtext, filedialog, messagebox
 import tkinter.font as tkFont
 import os
 import json
+import threading
 import webbrowser
 from pynput import mouse, keyboard
 from constants import RepeatMode, MacroType
@@ -280,9 +281,12 @@ class RecordingMacroTab(ttk.Frame):
     def _set_dirty(self, dirty=True):
         if self.is_dirty == dirty: return
         self.is_dirty = dirty
-        title = getattr(self.app, 'title_base', '푸크로')
-        if dirty: title += '*'
-        self.app.root.title(title)
+        if hasattr(self.app, 'refresh_title'):
+            self.app.refresh_title()
+        else:
+            title = getattr(self.app, 'title_base', '푸크로')
+            if dirty: title += '*'
+            self.app.root.title(title)
 
     def log(self, message):
         self.app.log(f"[체인] {message}")
@@ -563,6 +567,9 @@ class RecordingMacroTab(ttk.Frame):
             return data.get('actions', [])
         except FileNotFoundError:
             self.log(f"🔥 파일 없음: '{os.path.basename(file_path)}'. 새 위치를 지정해주세요.")
+            if threading.current_thread() is not threading.main_thread():
+                self.log("⚠️ 재생 중에는 파일 선택 창을 열 수 없어 해당 항목을 건너뜁니다. 재생을 멈춘 뒤 경로를 수정해주세요.")
+                return None
             new_path = filedialog.askopenfilename(title=f"'{os.path.basename(file_path)}' 찾기", filetypes=[("JSON files", "*.json")])
             if new_path:
                 for item_id, item_info in self.playlist_data.items():
@@ -757,9 +764,12 @@ class ChainGroupTab(ttk.Frame):
     def _set_dirty(self, dirty=True):
         if self.is_dirty == dirty: return
         self.is_dirty = dirty
-        title = getattr(self.app, 'title_base', '푸크로')
-        if dirty: title += '*'
-        self.app.root.title(title)
+        if hasattr(self.app, 'refresh_title'):
+            self.app.refresh_title()
+        else:
+            title = getattr(self.app, 'title_base', '푸크로')
+            if dirty: title += '*'
+            self.app.root.title(title)
 
     def log(self, message):
         self.app.log(f"[그룹] {message}")
