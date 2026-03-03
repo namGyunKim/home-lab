@@ -5,7 +5,7 @@ import webbrowser
 
 class InfoTab(ttk.Frame):
     def __init__(self, parent):
-        super().__init__(parent, padding=10)
+        super().__init__(parent, padding=12)
         self._create_widgets()
 
     def _create_widgets(self):
@@ -26,19 +26,20 @@ class InfoTab(ttk.Frame):
         info_frame = ttk.LabelFrame(self, text="푸크로 (Pucro) 매크로 - 사용 설명서", style="Card.TLabelframe")
         info_frame.pack(fill=tk.BOTH, expand=True)
         help_text = scrolledtext.ScrolledText(
-            info_frame, wrap=tk.WORD, padx=10, pady=10, bd=0, font=("Malgun Gothic", 10),
-            bg="#fbfdff", fg="#2a3a4d", insertbackground="#2a3a4d",
-            relief=tk.FLAT, highlightthickness=1, highlightbackground="#d7e1ef"
+            info_frame, wrap=tk.WORD, padx=15, pady=13, bd=0, font=("Malgun Gothic", 12),
+            bg="#ffffff", fg="#152a43", insertbackground="#152a43",
+            relief=tk.FLAT, highlightthickness=1, highlightbackground="#cad7e9",
+            spacing1=3, spacing3=5
         )
         help_text.pack(fill=tk.BOTH, expand=True)
 
         # 스타일 태그 설정
-        help_text.tag_configure("h1", font=("Malgun Gothic", 14, "bold"), spacing3=10, foreground="#2c3e50")
-        help_text.tag_configure("h2", font=("Malgun Gothic", 12, "bold"), spacing3=5, spacing1=15, foreground="#34495e")
-        help_text.tag_configure("h3", font=("Malgun Gothic", 10, "bold"), spacing1=10, foreground="#7f8c8d")
-        help_text.tag_configure("bold", font=("Malgun Gothic", 10, "bold"))
-        help_text.tag_configure("item", lmargin1=20, lmargin2=20, spacing1=3)
-        help_text.tag_configure("code", font=("Consolas", 9), background="#f0f0f0")
+        help_text.tag_configure("h1", font=("Malgun Gothic", 18, "bold"), spacing1=3, spacing3=15, foreground="#13263d")
+        help_text.tag_configure("h2", font=("Malgun Gothic", 14, "bold"), spacing1=17, spacing3=7, foreground="#1f3858")
+        help_text.tag_configure("h3", font=("Malgun Gothic", 12, "bold"), spacing1=13, foreground="#3f556f")
+        help_text.tag_configure("bold", font=("Malgun Gothic", 12, "bold"))
+        help_text.tag_configure("item", lmargin1=24, lmargin2=24, spacing1=5, spacing3=3)
+        help_text.tag_configure("code", font=("Consolas", 11), background="#edf3ff", foreground="#1f3858")
 
         # 매뉴얼 내용 삽입
         help_text.insert(tk.END, "📘 푸크로(Pucro) 매크로 사용 설명서\n", "h1")

@@ -17,6 +17,7 @@ class MainApp:
         self.root = root
         self.title_base = "푸크로 V4.6 (Stability Update)"
         self.root.title(self.title_base)
+        self.root.minsize(1240, 820)
 
         # [수정] 설정 파일 경로를 실행 파일 기준 상대 경로(로컬)로 변경 (Portable 지원)
         if getattr(sys, 'frozen', False):
@@ -133,96 +134,111 @@ class MainApp:
                 pass
 
         colors = {
-            "bg": "#f3f6fb",
+            "bg": "#e7eef9",
             "surface": "#ffffff",
-            "surface_soft": "#f8fbff",
-            "border": "#d7e1ef",
-            "text": "#223246",
-            "muted": "#6d7f95",
-            "accent": "#4b7cf3",
-            "accent_hover": "#628ff8",
-            "accent_press": "#3f6fdc",
-            "danger": "#ea5c65",
-            "danger_hover": "#f07078",
-            "danger_press": "#d74f58",
-            "neutral": "#e8eef9",
-            "neutral_hover": "#dbe5f4",
-            "neutral_press": "#cfdbef"
+            "surface_soft": "#f2f7ff",
+            "border": "#b9c9df",
+            "text": "#0f2036",
+            "muted": "#334a66",
+            "accent": "#1859bf",
+            "accent_soft": "#e1ecff",
+            "accent_hover": "#3c7ced",
+            "accent_press": "#1d56b8",
+            "danger": "#d84f59",
+            "danger_soft": "#fde7eb",
+            "danger_hover": "#e36570",
+            "danger_press": "#be424c",
+            "neutral": "#dee8f8",
+            "neutral_hover": "#d2e0f3",
+            "neutral_press": "#c7d6ea"
         }
+        fonts = {
+            "base": ("Malgun Gothic", 12),
+            "small": ("Malgun Gothic", 11),
+            "button": ("Malgun Gothic", 12, "bold"),
+            "label_bold": ("Malgun Gothic", 12, "bold"),
+            "tab": ("Malgun Gothic", 12, "bold"),
+            "tree": ("Malgun Gothic", 11),
+            "tree_heading": ("Malgun Gothic", 11, "bold"),
+            "log": ("Malgun Gothic", 11)
+        }
+        self.ui_theme = {"colors": colors, "fonts": fonts}
 
         try:
             self.root.configure(bg=colors["bg"])
         except tk.TclError:
             pass
 
-        _cfg(".", font=("Malgun Gothic", 10), background=colors["bg"], foreground=colors["text"])
+        _cfg(".", font=fonts["base"], background=colors["bg"], foreground=colors["text"])
         _cfg("App.TFrame", background=colors["bg"])
         _cfg("TFrame", background=colors["bg"])
-        _cfg("TLabel", background=colors["bg"], foreground=colors["text"])
+        _cfg("TLabel", font=fonts["base"], background=colors["bg"], foreground=colors["text"])
         _cfg("Link.TLabel", background=colors["bg"], foreground=colors["accent"])
+        _cfg("InfoAccent.TLabel", background=colors["surface_soft"], foreground=colors["accent"])
+        _cfg("Muted.TLabel", background=colors["surface_soft"], foreground=colors["muted"])
 
-        _cfg("Status.TLabel", background=colors["surface_soft"], foreground=colors["muted"], padding=(10, 5))
+        _cfg("Status.TLabel", font=fonts["small"], background=colors["surface_soft"], foreground=colors["muted"], padding=(12, 6))
 
-        _cfg("TButton", padding=(12, 7), borderwidth=0, relief="flat",
+        _cfg("TButton", font=fonts["button"], padding=(13, 9), borderwidth=1, relief="flat",
              background=colors["neutral"], foreground=colors["text"])
         _map("TButton",
              background=[("active", colors["neutral_hover"]), ("pressed", colors["neutral_press"])],
-             foreground=[("disabled", "#a4b0c0")])
+             foreground=[("disabled", "#5f728a")])
 
-        _cfg("Accent.TButton", padding=(12, 7), borderwidth=0, relief="flat",
-             background=colors["accent"], foreground="#ffffff")
+        _cfg("Accent.TButton", font=fonts["button"], padding=(13, 9), borderwidth=1, relief="flat",
+             background=colors["accent_soft"], foreground="#0f468f")
         _map("Accent.TButton",
-             background=[("active", colors["accent_hover"]), ("pressed", colors["accent_press"])],
-             foreground=[("disabled", "#d7def0")])
+             background=[("active", "#d5e4ff"), ("pressed", "#cadeff")],
+             foreground=[("active", "#0b3f83"), ("pressed", "#09366f"), ("disabled", "#667b99")])
 
-        _cfg("Danger.TButton", padding=(12, 7), borderwidth=0, relief="flat",
-             background=colors["danger"], foreground="#ffffff")
+        _cfg("Danger.TButton", font=fonts["button"], padding=(13, 9), borderwidth=1, relief="flat",
+             background=colors["danger_soft"], foreground="#b13f48")
         _map("Danger.TButton",
-             background=[("active", colors["danger_hover"]), ("pressed", colors["danger_press"])],
-             foreground=[("disabled", "#ead7da")])
+             background=[("active", "#f9dde2"), ("pressed", "#f4d1d7")],
+             foreground=[("active", "#9f323c"), ("pressed", "#842a32"), ("disabled", "#9d8a8f")])
 
-        _cfg("Neutral.TButton", padding=(12, 7), borderwidth=0, relief="flat",
+        _cfg("Neutral.TButton", font=fonts["button"], padding=(13, 9), borderwidth=1, relief="flat",
              background=colors["neutral"], foreground=colors["text"])
         _map("Neutral.TButton",
              background=[("active", colors["neutral_hover"]), ("pressed", colors["neutral_press"])],
-             foreground=[("disabled", "#a4b0c0")])
+             foreground=[("disabled", "#5f728a")])
 
-        _cfg("Ghost.TButton", padding=(10, 6), borderwidth=1, relief="flat",
-             background=colors["surface"], foreground=colors["text"])
+        _cfg("Ghost.TButton", font=fonts["button"], padding=(11, 8), borderwidth=1, relief="flat",
+             background=colors["surface"], foreground="#23364d")
         _map("Ghost.TButton",
              background=[("active", colors["surface_soft"]), ("pressed", colors["neutral"])],
-             foreground=[("disabled", "#a4b0c0")])
+             foreground=[("disabled", "#5f728a")])
 
         _cfg("TMenubutton", padding=(10, 6), borderwidth=0)
-        _cfg("TCheckbutton", padding=4)
-        _cfg("TRadiobutton", padding=4)
-        _cfg("TEntry", padding=5, fieldbackground=colors["surface"])
-        _cfg("TCombobox", padding=5, fieldbackground=colors["surface"])
+        _cfg("TCheckbutton", font=fonts["base"], padding=4)
+        _cfg("TRadiobutton", font=fonts["base"], padding=4)
+        _cfg("TEntry", font=fonts["base"], padding=7, fieldbackground=colors["surface"], foreground=colors["text"])
+        _cfg("TCombobox", font=fonts["base"], padding=7, fieldbackground=colors["surface"], foreground=colors["text"])
 
         _cfg("TLabelframe", padding=10, borderwidth=1, relief="solid", background=colors["bg"])
-        _cfg("TLabelframe.Label", font=("Malgun Gothic", 10, "bold"),
+        _cfg("TLabelframe.Label", font=fonts["label_bold"],
              foreground=colors["muted"], background=colors["bg"])
-        _cfg("Card.TLabelframe", padding=12, borderwidth=1, relief="solid", background=colors["surface_soft"])
-        _cfg("Card.TLabelframe.Label", font=("Malgun Gothic", 10, "bold"),
+        _cfg("Card.TLabelframe", padding=14, borderwidth=1, relief="solid", background=colors["surface_soft"])
+        _cfg("Card.TLabelframe.Label", font=fonts["label_bold"],
              foreground=colors["muted"], background=colors["surface_soft"])
 
-        _cfg("Soft.TNotebook", background=colors["bg"], borderwidth=0, padding=2)
-        _cfg("Soft.TNotebook.Tab", padding=(16, 9), font=("Malgun Gothic", 10, "bold"),
+        _cfg("Soft.TNotebook", background=colors["bg"], borderwidth=0, padding=3)
+        _cfg("Soft.TNotebook.Tab", padding=(20, 11), font=fonts["tab"],
              background=colors["neutral"], foreground=colors["muted"])
         _map("Soft.TNotebook.Tab",
              background=[("selected", colors["surface"]), ("active", colors["neutral_hover"])],
              foreground=[("selected", colors["text"]), ("active", colors["text"])])
 
-        _cfg("Treeview", rowheight=27, background=colors["surface"], fieldbackground=colors["surface"],
-             borderwidth=0)
+        _cfg("Treeview", rowheight=34, font=fonts["tree"], background=colors["surface"], fieldbackground=colors["surface"],
+             foreground=colors["text"], borderwidth=0)
         _map("Treeview",
-             background=[("selected", "#dbe8ff")],
+             background=[("selected", "#c3d7fb")],
              foreground=[("selected", colors["text"])])
-        _cfg("Treeview.Heading", font=("Malgun Gothic", 10, "bold"), padding=(8, 6),
+        _cfg("Treeview.Heading", font=fonts["tree_heading"], padding=(8, 7),
              background=colors["neutral"], foreground=colors["muted"])
 
     def _validate_and_set_geometry(self, geometry):
-        width, height = 1100, 750
+        width, height = 1320, 880
         if not geometry:
             self.center_window(width, height)
             return
@@ -284,18 +300,19 @@ class MainApp:
             print(f"설정 파일 저장 오류: {e}")
 
     def _create_widgets(self):
-        main_frame = ttk.Frame(self.root, padding="5", style="App.TFrame")
+        main_frame = ttk.Frame(self.root, padding="8", style="App.TFrame")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         # 좌우 분할 (탭 화면 / 로그 화면)
         paned_window = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
         paned_window.pack(fill=tk.BOTH, expand=True)
+        self.root.after(120, lambda: self._set_initial_pane_layout(paned_window))
 
         # [왼쪽] 탭 컨트롤
         left_frame = ttk.Frame(paned_window)
         paned_window.add(left_frame, weight=2)
         self.notebook = ttk.Notebook(left_frame, style="Soft.TNotebook")
-        self.notebook.pack(fill=tk.BOTH, expand=True, pady=5, padx=(0, 5))
+        self.notebook.pack(fill=tk.BOTH, expand=True, pady=5, padx=(0, 6))
 
         # [오른쪽] 로그 화면
         right_frame = ttk.Frame(paned_window)
@@ -321,7 +338,23 @@ class MainApp:
 
         self.log("프로그램 준비 완료. 사용할 탭을 선택하고 시작하세요.")
 
+    def _set_initial_pane_layout(self, paned_window):
+        try:
+            total_width = paned_window.winfo_width()
+            if total_width > 700:
+                paned_window.sashpos(0, int(total_width * 0.61))
+        except tk.TclError:
+            pass
+
     def _create_log_widgets(self, parent):
+        theme = getattr(self, "ui_theme", {})
+        colors = theme.get("colors", {})
+        fonts = theme.get("fonts", {})
+        text_bg = colors.get("surface", "#ffffff")
+        text_fg = colors.get("text", "#2a3a4d")
+        text_border = colors.get("border", "#d7e1ef")
+        text_font = fonts.get("log", ("Malgun Gothic", 10))
+
         log_container = ttk.Frame(parent, style="App.TFrame")
         log_container.pack(fill=tk.BOTH, expand=True, pady=5, padx=(5, 0))
         log_container.columnconfigure(0, weight=1)
@@ -333,8 +366,10 @@ class MainApp:
         event_log_frame.columnconfigure(0, weight=1)
         self.event_log_text = scrolledtext.ScrolledText(
             event_log_frame, wrap=tk.WORD, height=8, state=tk.DISABLED, bd=0,
-            bg="#fbfdff", fg="#2a3a4d", insertbackground="#2a3a4d",
-            relief=tk.FLAT, highlightthickness=1, highlightbackground="#d7e1ef"
+            font=text_font, padx=11, pady=9,
+            bg=text_bg, fg=text_fg, insertbackground=text_fg,
+            relief=tk.FLAT, highlightthickness=1, highlightbackground=text_border,
+            spacing1=3, spacing3=3
         )
         self.event_log_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
@@ -345,8 +380,10 @@ class MainApp:
         run_log_frame.rowconfigure(0, weight=1)
         self.log_text = scrolledtext.ScrolledText(
             run_log_frame, wrap=tk.WORD, state=tk.DISABLED, bd=0,
-            bg="#fbfdff", fg="#2a3a4d", insertbackground="#2a3a4d",
-            relief=tk.FLAT, highlightthickness=1, highlightbackground="#d7e1ef"
+            font=text_font, padx=11, pady=9,
+            bg=text_bg, fg=text_fg, insertbackground=text_fg,
+            relief=tk.FLAT, highlightthickness=1, highlightbackground=text_border,
+            spacing1=3, spacing3=3
         )
         self.log_text.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
 
@@ -360,11 +397,11 @@ class MainApp:
         tab_patch = ttk.Frame(self.notebook)
         tab_info = ttk.Frame(self.notebook)
 
-        self.notebook.add(tab_record, text="  매크로 체인  ")
-        self.notebook.add(tab_group, text="  매크로 그룹  ")
-        self.notebook.add(tab_image, text="  이미지 매크로  ")
-        self.notebook.add(tab_patch, text="  패치노트  ")
-        self.notebook.add(tab_info, text="  도움말  ")
+        self.notebook.add(tab_record, text="매크로 체인")
+        self.notebook.add(tab_group, text="매크로 그룹")
+        self.notebook.add(tab_image, text="이미지 매크로")
+        self.notebook.add(tab_patch, text="패치노트")
+        self.notebook.add(tab_info, text="도움말")
 
         # 각 탭 인스턴스 생성
         # config는 load_config()에서 읽은 raw 딕셔너리.

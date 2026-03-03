@@ -104,7 +104,8 @@ class ImageMacroTab(ttk.Frame):
         self.set_area_button = ttk.Button(settings_frame, text="영역 설정 (F9)", style="Ghost.TButton", command=self.start_defining_area)
         self.set_area_button.grid(row=r, column=2, padx=5, pady=2)
         r += 1
-        ttk.Label(settings_frame, textvariable=self.search_area_display_var, foreground="blue").grid(row=r, column=1, columnspan=2, sticky=tk.W, padx=5, pady=2)
+        self.search_area_label = ttk.Label(settings_frame, textvariable=self.search_area_display_var, style="InfoAccent.TLabel")
+        self.search_area_label.grid(row=r, column=1, columnspan=2, sticky=tk.W, padx=5, pady=2)
         settings_frame.columnconfigure(1, weight=1)
         self.repeat_frame = ttk.LabelFrame(self, text="반복 설정", style="Card.TLabelframe")
         self.repeat_frame.pack(fill=tk.X, padx=10, pady=5)

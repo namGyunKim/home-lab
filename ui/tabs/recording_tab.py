@@ -233,7 +233,7 @@ class RecordingMacroTab(ttk.Frame):
         if file:
             display_name = f"[이미지 대기] {os.path.basename(file)}"
             item_id = self.macro_tree.insert("", tk.END, values=(display_name, "1.0"), tags=('image_wait_macro',))
-            self.macro_tree.tag_configure('image_wait_macro', foreground='#E69138')
+            self.macro_tree.tag_configure('image_wait_macro', foreground='#b55e08')
             self.playlist_data[item_id] = {'type': MacroType.IMAGE_WAIT.value, 'data': file, 'display_name': display_name}
             self.log(f"✅ 이미지(대기) '{os.path.basename(file)}'를 추가했습니다.")
             self._set_dirty()
@@ -242,7 +242,7 @@ class RecordingMacroTab(ttk.Frame):
         display_name = f"새 녹화 {self.new_recording_counter}"
         self.new_recording_counter += 1
         item_id = self.macro_tree.insert("", tk.END, values=(display_name, "1.0"), tags=('memory_macro',))
-        self.macro_tree.tag_configure('memory_macro', foreground='blue')
+        self.macro_tree.tag_configure('memory_macro', foreground='#1f64d9')
         self.playlist_data[item_id] = {'type': MacroType.MEMORY.value, 'data': actions, 'display_name': display_name}
         self.log(f"✅ '{display_name}'를 재생 목록에 추가했습니다.")
         self._set_dirty()
@@ -308,8 +308,8 @@ class RecordingMacroTab(ttk.Frame):
                 elif item_type == MacroType.IMAGE_WAIT.value: tags = ('image_wait_macro',)
                 item_id = self.macro_tree.insert("", tk.END, values=(item.get('display_name'), item.get('delay', '1.0')), tags=tags)
                 self.playlist_data[item_id] = {'type': item_type, 'data': item_data, 'display_name': item.get('display_name')}
-            self.macro_tree.tag_configure('memory_macro', foreground='blue')
-            self.macro_tree.tag_configure('image_wait_macro', foreground='#E69138')
+            self.macro_tree.tag_configure('memory_macro', foreground='#1f64d9')
+            self.macro_tree.tag_configure('image_wait_macro', foreground='#b55e08')
             self.app.log_event(f"💾 체인 불러오기 완료: '{os.path.basename(file_path)}'")
             self._set_dirty(False)
         except Exception as e:
