@@ -40,7 +40,6 @@ class AutoClickerMacro:
         if not self.is_running: return
         self.stop_event.set()
         self.pause_event.set() # 일시정지 상태에서 멈출 수 있도록 깨움
-        self.is_running = False
         self.c['log']("중지 요청 중...")
 
     def pause_or_resume(self):
@@ -250,7 +249,6 @@ class RecordingMacro:
         if not self.is_playing: return
         self.stop_event.set()
         self.pause_event.set() # 일시정지 해제하여 루프 탈출
-        self.is_playing = False
         self.c['log']("중지 요청 중...")
 
     def pause_or_resume_playback(self):
@@ -385,7 +383,6 @@ class ChainGroupMacro:
         if not self.is_playing: return
         self.stop_event.set()
         self.pause_event.set()
-        self.is_playing = False
         self.c['log']("그룹 중지 요청...")
 
     def pause_or_resume_playback(self):
@@ -425,6 +422,7 @@ class ChainGroupMacro:
                 for chain_index, chain_info in enumerate(settings['chain_playlist']):
                     if self.stop_event.is_set(): break
                     self.pause_event.wait()
+                    if self.stop_event.is_set(): break
 
                     chain_path = chain_info['path']
                     chain_repeats = int(chain_info['repeats'])
@@ -443,6 +441,7 @@ class ChainGroupMacro:
                     for i in range(chain_repeats):
                         if self.stop_event.is_set(): break
                         self.pause_event.wait()
+                        if self.stop_event.is_set(): break
 
                         # 체인 내 아이템 실행
                         for macro_item in macro_playlist:

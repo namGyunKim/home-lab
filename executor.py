@@ -114,7 +114,8 @@ class MacroExecutor:
             else:
                 actions = macro_data if macro_type == MacroType.MEMORY.value else callbacks['load_actions_from_file'](macro_data)
                 if actions is None:
-                    return False # 파일 로드 실패 시 중단
+                    callbacks['log'](f"⚠️ '{display_name}' 로드 실패로 이 항목을 건너뜁니다.")
+                    return True
                 if not actions:
                     callbacks['log'](f"⚠️ '{display_name}' 내용 없음.")
                     return True

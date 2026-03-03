@@ -572,12 +572,14 @@ class RecordingMacroTab(ttk.Frame):
                 return None
             new_path = filedialog.askopenfilename(title=f"'{os.path.basename(file_path)}' 찾기", filetypes=[("JSON files", "*.json")])
             if new_path:
+                updated_count = 0
                 for item_id, item_info in self.playlist_data.items():
                     if item_info.get('data') == file_path:
                         item_info['data'] = new_path
                         self.macro_tree.set(item_id, "#1", os.path.basename(new_path))
-                        self._set_dirty()
-                        break
+                        updated_count += 1
+                if updated_count > 0:
+                    self._set_dirty()
                 return self.load_actions_from_file(new_path)
             return None
         except Exception as e:
