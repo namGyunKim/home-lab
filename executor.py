@@ -142,7 +142,7 @@ class MacroExecutor:
                     end_wait = time.time() + delay
                     while time.time() < end_wait:
                         if stop_event.is_set(): return False
-                        time.sleep(min(0.05, end_wait - time.time())) # 0.1 -> 0.05 더 부드러운 중단
+                        time.sleep(max(0.0, min(0.05, end_wait - time.time()))) # 0.1 -> 0.05 더 부드러운 중단
 
                     action_type = action['type']
 
@@ -184,7 +184,7 @@ class MacroExecutor:
                 end_wait = time.time() + item_delay
                 while time.time() < end_wait:
                     if stop_event.is_set(): return False
-                    time.sleep(min(0.1, end_wait - time.time()))
+                    time.sleep(max(0.0, min(0.1, end_wait - time.time())))
 
             return True
 

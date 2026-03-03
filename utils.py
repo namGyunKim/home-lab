@@ -169,7 +169,7 @@ def execute_image_scan(log_func, image_folder_path, stop_event, pause_event):
                 end_time = time.time() + interval
                 while time.time() < end_time:
                     if stop_event.is_set(): break
-                    time.sleep(min(0.05, end_time - time.time()))
+                    time.sleep(max(0.0, min(0.05, end_time - time.time())))
 
         except pyautogui.FailSafeException:
             log_func("🚨 페일세이프 발동! (마우스 모서리 감지)")
