@@ -83,7 +83,7 @@ class ImageMacroTab(ttk.Frame):
         ttk.Label(settings_frame, text="이미지 폴더:").grid(row=r, column=0, sticky=tk.W, padx=5, pady=2)
         self.folder_entry = ttk.Entry(settings_frame, textvariable=self.image_folder_path, state='readonly')
         self.folder_entry.grid(row=r, column=1, sticky=tk.EW, padx=5, pady=2)
-        self.folder_button = ttk.Button(settings_frame, text="폴더 선택", command=self.select_folder)
+        self.folder_button = ttk.Button(settings_frame, text="폴더 선택", style="Ghost.TButton", command=self.select_folder)
         self.folder_button.grid(row=r, column=2, padx=5, pady=2)
         r += 1
         ttk.Label(settings_frame, text="클릭 간격(초):").grid(row=r, column=0, sticky=tk.W, padx=5, pady=2)
@@ -101,7 +101,7 @@ class ImageMacroTab(ttk.Frame):
         ttk.Label(settings_frame, text="검색 영역:").grid(row=r, column=0, sticky=tk.W, padx=5, pady=2)
         self.use_search_area_check = ttk.Checkbutton(settings_frame, text="활성화", variable=self.use_search_area_var)
         self.use_search_area_check.grid(row=r, column=1, sticky=tk.W, padx=5, pady=2)
-        self.set_area_button = ttk.Button(settings_frame, text="영역 설정 (F9)", command=self.start_defining_area)
+        self.set_area_button = ttk.Button(settings_frame, text="영역 설정 (F9)", style="Ghost.TButton", command=self.start_defining_area)
         self.set_area_button.grid(row=r, column=2, padx=5, pady=2)
         r += 1
         ttk.Label(settings_frame, textvariable=self.search_area_display_var, foreground="blue").grid(row=r, column=1, columnspan=2, sticky=tk.W, padx=5, pady=2)
@@ -128,11 +128,11 @@ class ImageMacroTab(ttk.Frame):
         control_frame = ttk.LabelFrame(self, text="제어")
         control_frame.pack(fill=tk.BOTH, padx=10, pady=5, expand=True)
         control_frame.columnconfigure((0,1,2), weight=1)
-        self.start_button = ttk.Button(control_frame, text="시작 (F3)", command=self.start_macro)
+        self.start_button = ttk.Button(control_frame, text="시작 (F3)", style="Accent.TButton", command=self.start_macro)
         self.start_button.grid(row=0, column=0, sticky=tk.EW, padx=5, pady=5)
-        self.pause_button = ttk.Button(control_frame, text="일시정지 (F5)", command=self.macro.pause_or_resume, state=tk.DISABLED)
+        self.pause_button = ttk.Button(control_frame, text="일시정지 (F5)", style="Neutral.TButton", command=self.macro.pause_or_resume, state=tk.DISABLED)
         self.pause_button.grid(row=0, column=1, sticky=tk.EW, padx=5, pady=5)
-        self.stop_button = ttk.Button(control_frame, text="중지 (F4)", command=self.macro.stop, state=tk.DISABLED)
+        self.stop_button = ttk.Button(control_frame, text="중지 (F4)", style="Danger.TButton", command=self.macro.stop, state=tk.DISABLED)
         self.stop_button.grid(row=0, column=2, sticky=tk.EW, padx=5, pady=5)
 
     def toggle_repeat_entry(self):
@@ -235,11 +235,17 @@ class ImageMacroTab(ttk.Frame):
                     self.use_search_area_check, self.set_area_button, self.interval_entry
                 ]
                 for widget in widgets_to_toggle:
-                    widget.config(state=state)
+                    try:
+                        widget.config(state=state)
+                    except tk.TclError:
+                        pass
 
                 if self.repeat_frame.winfo_exists():
                     for child in self.repeat_frame.winfo_children():
-                        child.config(state=state)
+                        try:
+                            child.config(state=state)
+                        except tk.TclError:
+                            pass
                 self.toggle_repeat_entry()
 
             if paused is not None:

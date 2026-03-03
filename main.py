@@ -53,10 +53,23 @@ class MainApp:
         self.always_on_top_var = tk.BooleanVar(value=False)
         view_menu.add_checkbutton(label="항상 위에 표시", variable=self.always_on_top_var, command=self.toggle_always_on_top)
         view_menu.add_separator()
-        self.theme_var = tk.StringVar(value="clam")
-        view_menu.add_radiobutton(label="기본 테마 (Clam)", variable=self.theme_var, value="clam", command=self.change_theme)
-        view_menu.add_radiobutton(label="클래식 테마 (Alt)", variable=self.theme_var, value="alt", command=self.change_theme)
-        view_menu.add_radiobutton(label="시스템 테마 (Default)", variable=self.theme_var, value="default", command=self.change_theme)
+        self.theme_var = tk.StringVar(value=self.style.theme_use())
+
+        theme_options = [
+            ("clam", "기본 테마 (Clam)"),
+            ("alt", "클래식 테마 (Alt)"),
+            ("default", "시스템 테마 (Default)"),
+            ("vista", "윈도우 테마 (Vista)"),
+            ("xpnative", "윈도우 테마 (XP)")
+        ]
+        for theme_name, theme_label in theme_options:
+            if theme_name in self.available_themes:
+                view_menu.add_radiobutton(
+                    label=theme_label,
+                    variable=self.theme_var,
+                    value=theme_name,
+                    command=self.change_theme
+                )
         menubar.add_cascade(label="보기", menu=view_menu)
 
         # [도구] 메뉴
@@ -76,6 +89,7 @@ class MainApp:
         theme = self.theme_var.get()
         try:
             self.style.theme_use(theme)
+            self._apply_soft_ui_style()
             self.log(f"🎨 테마가 '{theme}'로 변경되었습니다.")
         except tk.TclError: pass
 
@@ -86,14 +100,125 @@ class MainApp:
     def _apply_theme(self):
         """테마 및 스타일 설정"""
         self.style = ttk.Style(self.root)
-        try:
-            self.style.theme_use('clam')
-        except tk.TclError:
-            print("'clam' 테마를 찾을 수 없습니다. 기본 테마로 실행합니다.")
+        self.available_themes = set(self.style.theme_names())
 
-        self.style.configure("Treeview.Heading", font=(None, 10, 'bold'))
-        self.style.configure("TButton", padding=5)
-        self.style.configure("TMenubutton", padding=5)
+        preferred_theme = None
+        if sys.platform == "win32" and "vista" in self.available_themes:
+            preferred_theme = "vista"
+        elif "clam" in self.available_themes:
+            preferred_theme = "clam"
+        elif "default" in self.available_themes:
+            preferred_theme = "default"
+
+        if preferred_theme:
+            try:
+                self.style.theme_use(preferred_theme)
+            except tk.TclError:
+                pass
+
+        self._apply_soft_ui_style()
+
+    def _apply_soft_ui_style(self):
+        """둥글고 부드러운 느낌의 공통 스타일을 적용합니다."""
+        def _cfg(style_name, **kwargs):
+            try:
+                self.style.configure(style_name, **kwargs)
+            except tk.TclError:
+                pass
+
+        def _map(style_name, **kwargs):
+            try:
+                self.style.map(style_name, **kwargs)
+            except tk.TclError:
+                pass
+
+        colors = {
+            "bg": "#f3f6fb",
+            "surface": "#ffffff",
+            "surface_soft": "#f8fbff",
+            "border": "#d7e1ef",
+            "text": "#223246",
+            "muted": "#6d7f95",
+            "accent": "#4b7cf3",
+            "accent_hover": "#628ff8",
+            "accent_press": "#3f6fdc",
+            "danger": "#ea5c65",
+            "danger_hover": "#f07078",
+            "danger_press": "#d74f58",
+            "neutral": "#e8eef9",
+            "neutral_hover": "#dbe5f4",
+            "neutral_press": "#cfdbef"
+        }
+
+        try:
+            self.root.configure(bg=colors["bg"])
+        except tk.TclError:
+            pass
+
+        _cfg(".", font=("Malgun Gothic", 10), background=colors["bg"], foreground=colors["text"])
+        _cfg("App.TFrame", background=colors["bg"])
+        _cfg("TFrame", background=colors["bg"])
+        _cfg("TLabel", background=colors["bg"], foreground=colors["text"])
+
+        _cfg("Status.TLabel", background=colors["surface_soft"], foreground=colors["muted"], padding=(10, 5))
+
+        _cfg("TButton", padding=(12, 7), borderwidth=0, relief="flat",
+             background=colors["neutral"], foreground=colors["text"])
+        _map("TButton",
+             background=[("active", colors["neutral_hover"]), ("pressed", colors["neutral_press"])],
+             foreground=[("disabled", "#a4b0c0")])
+
+        _cfg("Accent.TButton", padding=(12, 7), borderwidth=0, relief="flat",
+             background=colors["accent"], foreground="#ffffff")
+        _map("Accent.TButton",
+             background=[("active", colors["accent_hover"]), ("pressed", colors["accent_press"])],
+             foreground=[("disabled", "#d7def0")])
+
+        _cfg("Danger.TButton", padding=(12, 7), borderwidth=0, relief="flat",
+             background=colors["danger"], foreground="#ffffff")
+        _map("Danger.TButton",
+             background=[("active", colors["danger_hover"]), ("pressed", colors["danger_press"])],
+             foreground=[("disabled", "#ead7da")])
+
+        _cfg("Neutral.TButton", padding=(12, 7), borderwidth=0, relief="flat",
+             background=colors["neutral"], foreground=colors["text"])
+        _map("Neutral.TButton",
+             background=[("active", colors["neutral_hover"]), ("pressed", colors["neutral_press"])],
+             foreground=[("disabled", "#a4b0c0")])
+
+        _cfg("Ghost.TButton", padding=(10, 6), borderwidth=1, relief="flat",
+             background=colors["surface"], foreground=colors["text"])
+        _map("Ghost.TButton",
+             background=[("active", colors["surface_soft"]), ("pressed", colors["neutral"])],
+             foreground=[("disabled", "#a4b0c0")])
+
+        _cfg("TMenubutton", padding=(10, 6), borderwidth=0)
+        _cfg("TCheckbutton", padding=4)
+        _cfg("TRadiobutton", padding=4)
+        _cfg("TEntry", padding=5, fieldbackground=colors["surface"])
+        _cfg("TCombobox", padding=5, fieldbackground=colors["surface"])
+
+        _cfg("TLabelframe", padding=10, borderwidth=1, relief="solid", background=colors["bg"])
+        _cfg("TLabelframe.Label", font=("Malgun Gothic", 10, "bold"),
+             foreground=colors["muted"], background=colors["bg"])
+        _cfg("Card.TLabelframe", padding=12, borderwidth=1, relief="solid", background=colors["surface_soft"])
+        _cfg("Card.TLabelframe.Label", font=("Malgun Gothic", 10, "bold"),
+             foreground=colors["muted"], background=colors["surface_soft"])
+
+        _cfg("Soft.TNotebook", background=colors["bg"], borderwidth=0, padding=2)
+        _cfg("Soft.TNotebook.Tab", padding=(16, 9), font=("Malgun Gothic", 10, "bold"),
+             background=colors["neutral"], foreground=colors["muted"])
+        _map("Soft.TNotebook.Tab",
+             background=[("selected", colors["surface"]), ("active", colors["neutral_hover"])],
+             foreground=[("selected", colors["text"]), ("active", colors["text"])])
+
+        _cfg("Treeview", rowheight=27, background=colors["surface"], fieldbackground=colors["surface"],
+             borderwidth=0)
+        _map("Treeview",
+             background=[("selected", "#dbe8ff")],
+             foreground=[("selected", colors["text"])])
+        _cfg("Treeview.Heading", font=("Malgun Gothic", 10, "bold"), padding=(8, 6),
+             background=colors["neutral"], foreground=colors["muted"])
 
     def _validate_and_set_geometry(self, geometry):
         width, height = 1100, 750
@@ -158,7 +283,7 @@ class MainApp:
             print(f"설정 파일 저장 오류: {e}")
 
     def _create_widgets(self):
-        main_frame = ttk.Frame(self.root, padding="5")
+        main_frame = ttk.Frame(self.root, padding="5", style="App.TFrame")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         # 좌우 분할 (탭 화면 / 로그 화면)
@@ -168,7 +293,7 @@ class MainApp:
         # [왼쪽] 탭 컨트롤
         left_frame = ttk.Frame(paned_window)
         paned_window.add(left_frame, weight=2)
-        self.notebook = ttk.Notebook(left_frame)
+        self.notebook = ttk.Notebook(left_frame, style="Soft.TNotebook")
         self.notebook.pack(fill=tk.BOTH, expand=True, pady=5, padx=(0, 5))
 
         # [오른쪽] 로그 화면
@@ -178,7 +303,7 @@ class MainApp:
 
         # 하단 상태바
         self.status_var = tk.StringVar(value="준비")
-        status_bar = ttk.Label(main_frame, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W, padding=2)
+        status_bar = ttk.Label(main_frame, textvariable=self.status_var, anchor=tk.W, style="Status.TLabel")
         status_bar.pack(side=tk.BOTTOM, fill=tk.X)
 
         # 탭 생성 및 추가
@@ -196,27 +321,35 @@ class MainApp:
         self.log("프로그램 준비 완료. 사용할 탭을 선택하고 시작하세요.")
 
     def _create_log_widgets(self, parent):
-        log_container = ttk.Frame(parent)
+        log_container = ttk.Frame(parent, style="App.TFrame")
         log_container.pack(fill=tk.BOTH, expand=True, pady=5, padx=(5, 0))
         log_container.columnconfigure(0, weight=1)
         log_container.rowconfigure(1, weight=1)
 
         # 이벤트 로그
-        event_log_frame = ttk.LabelFrame(log_container, text="이벤트 로그")
+        event_log_frame = ttk.LabelFrame(log_container, text="이벤트 로그", style="Card.TLabelframe")
         event_log_frame.grid(row=0, column=0, sticky='ew')
         event_log_frame.columnconfigure(0, weight=1)
-        self.event_log_text = scrolledtext.ScrolledText(event_log_frame, wrap=tk.WORD, height=8, state=tk.DISABLED, bd=0)
+        self.event_log_text = scrolledtext.ScrolledText(
+            event_log_frame, wrap=tk.WORD, height=8, state=tk.DISABLED, bd=0,
+            bg="#fbfdff", fg="#2a3a4d", insertbackground="#2a3a4d",
+            relief=tk.FLAT, highlightthickness=1, highlightbackground="#d7e1ef"
+        )
         self.event_log_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         # 실행 로그
-        run_log_frame = ttk.LabelFrame(log_container, text="실행 로그")
+        run_log_frame = ttk.LabelFrame(log_container, text="실행 로그", style="Card.TLabelframe")
         run_log_frame.grid(row=1, column=0, sticky='nsew', pady=(5,0))
         run_log_frame.columnconfigure(0, weight=1)
         run_log_frame.rowconfigure(0, weight=1)
-        self.log_text = scrolledtext.ScrolledText(run_log_frame, wrap=tk.WORD, state=tk.DISABLED, bd=0)
+        self.log_text = scrolledtext.ScrolledText(
+            run_log_frame, wrap=tk.WORD, state=tk.DISABLED, bd=0,
+            bg="#fbfdff", fg="#2a3a4d", insertbackground="#2a3a4d",
+            relief=tk.FLAT, highlightthickness=1, highlightbackground="#d7e1ef"
+        )
         self.log_text.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
 
-        ttk.Button(run_log_frame, text="로그 지우기", command=self.clear_log).grid(row=1, column=0, sticky='e', padx=5, pady=(0,5))
+        ttk.Button(run_log_frame, text="로그 지우기", style="Ghost.TButton", command=self.clear_log).grid(row=1, column=0, sticky='e', padx=5, pady=(0,5))
 
     def _init_tabs(self):
         # 탭 컨테이너 생성

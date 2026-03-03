@@ -432,10 +432,13 @@ class ChainGroupMacro:
 
                     # 체인 파일 로드
                     macro_playlist = self.c['load_macros_from_chain'](chain_path)
-                    if not macro_playlist:
+                    if macro_playlist is None:
                         self.c['log'](f"⚠️ 체인 로드 실패: {os.path.basename(chain_path)}")
                         self.stop_event.set()
                         break
+                    if not macro_playlist:
+                        self.c['log'](f"⚠️ 체인 내용 없음: {os.path.basename(chain_path)} (건너뜀)")
+                        continue
 
                     # 해당 체인 반복
                     for i in range(chain_repeats):
