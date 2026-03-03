@@ -70,7 +70,7 @@ class ImageMacroTab(ttk.Frame):
         self.app.log(f"[이미지] {message}")
 
     def _create_widgets(self):
-        settings_frame = ttk.LabelFrame(self, text="이미지 매크로 설정")
+        settings_frame = ttk.LabelFrame(self, text="이미지 매크로 설정", style="Card.TLabelframe")
         settings_frame.pack(fill=tk.X, padx=10, pady=5, anchor=tk.N)
         self.image_folder_path = tk.StringVar()
         self.interval_var = tk.StringVar(value="0.1")
@@ -106,7 +106,7 @@ class ImageMacroTab(ttk.Frame):
         r += 1
         ttk.Label(settings_frame, textvariable=self.search_area_display_var, foreground="blue").grid(row=r, column=1, columnspan=2, sticky=tk.W, padx=5, pady=2)
         settings_frame.columnconfigure(1, weight=1)
-        self.repeat_frame = ttk.LabelFrame(self, text="반복 설정")
+        self.repeat_frame = ttk.LabelFrame(self, text="반복 설정", style="Card.TLabelframe")
         self.repeat_frame.pack(fill=tk.X, padx=10, pady=5)
         self.repeat_mode_var = tk.StringVar(value=RepeatMode.INFINITE.name)
         self.repeat_value_var = tk.StringVar(value="10")
@@ -125,7 +125,7 @@ class ImageMacroTab(ttk.Frame):
         ttk.Label(repeat_delay_frame, text="각 순회 후 대기(초):").pack(side=tk.LEFT)
         ttk.Entry(repeat_delay_frame, textvariable=self.repeat_delay_var, width=8).pack(side=tk.LEFT, padx=2)
         self.toggle_repeat_entry()
-        control_frame = ttk.LabelFrame(self, text="제어")
+        control_frame = ttk.LabelFrame(self, text="제어", style="Card.TLabelframe")
         control_frame.pack(fill=tk.BOTH, padx=10, pady=5, expand=True)
         control_frame.columnconfigure((0,1,2), weight=1)
         self.start_button = ttk.Button(control_frame, text="시작 (F3)", style="Accent.TButton", command=self.start_macro)

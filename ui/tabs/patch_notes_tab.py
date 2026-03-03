@@ -7,9 +7,13 @@ class PatchNotesTab(ttk.Frame):
         self._create_widgets()
 
     def _create_widgets(self):
-        notes_frame = ttk.LabelFrame(self, text="버전 정보 및 변경 사항")
+        notes_frame = ttk.LabelFrame(self, text="버전 정보 및 변경 사항", style="Card.TLabelframe")
         notes_frame.pack(fill=tk.BOTH, expand=True)
-        notes_text_widget = scrolledtext.ScrolledText(notes_frame, wrap=tk.WORD, padx=10, pady=10, bd=0)
+        notes_text_widget = scrolledtext.ScrolledText(
+            notes_frame, wrap=tk.WORD, padx=10, pady=10, bd=0,
+            bg="#fbfdff", fg="#2a3a4d", insertbackground="#2a3a4d",
+            relief=tk.FLAT, highlightthickness=1, highlightbackground="#d7e1ef"
+        )
         notes_text_widget.pack(fill=tk.BOTH, expand=True)
         notes_text_widget.tag_configure("title", font=("", 12, "bold"), spacing3=10)
         notes_text_widget.tag_configure("subtitle", font=("", 10, "bold"), spacing1=10, lmargin1=5)

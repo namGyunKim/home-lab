@@ -159,6 +159,7 @@ class MainApp:
         _cfg("App.TFrame", background=colors["bg"])
         _cfg("TFrame", background=colors["bg"])
         _cfg("TLabel", background=colors["bg"], foreground=colors["text"])
+        _cfg("Link.TLabel", background=colors["bg"], foreground=colors["accent"])
 
         _cfg("Status.TLabel", background=colors["surface_soft"], foreground=colors["muted"], padding=(10, 5))
 

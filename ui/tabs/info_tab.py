@@ -10,12 +10,12 @@ class InfoTab(ttk.Frame):
 
     def _create_widgets(self):
         # 개발자 링크
-        link_container = tk.Frame(self)
+        link_container = ttk.Frame(self)
         link_container.pack(side=tk.TOP, fill=tk.X, pady=(0, 10))
-        source_text_label = tk.Label(link_container, text="개발자 블로그 (출처): ")
+        source_text_label = ttk.Label(link_container, text="개발자 블로그 (출처): ")
         source_text_label.pack(side=tk.LEFT, padx=(0, 2))
         url = "https://blog.naver.com/skarbs01/223983468359"
-        link_label = tk.Label(link_container, text=url, fg="blue", cursor="hand2")
+        link_label = ttk.Label(link_container, text=url, style="Link.TLabel", cursor="hand2")
         link_label.pack(side=tk.LEFT)
         f = tkFont.Font(link_label, link_label.cget("font"))
         f.configure(underline=True)
@@ -23,9 +23,13 @@ class InfoTab(ttk.Frame):
         link_label.bind("<Button-1>", lambda e: webbrowser.open_new(url))
 
         # 도움말 내용
-        info_frame = ttk.LabelFrame(self, text="푸크로 (Pucro) 매크로 - 사용 설명서")
+        info_frame = ttk.LabelFrame(self, text="푸크로 (Pucro) 매크로 - 사용 설명서", style="Card.TLabelframe")
         info_frame.pack(fill=tk.BOTH, expand=True)
-        help_text = scrolledtext.ScrolledText(info_frame, wrap=tk.WORD, padx=10, pady=10, bd=0, font=("Malgun Gothic", 10))
+        help_text = scrolledtext.ScrolledText(
+            info_frame, wrap=tk.WORD, padx=10, pady=10, bd=0, font=("Malgun Gothic", 10),
+            bg="#fbfdff", fg="#2a3a4d", insertbackground="#2a3a4d",
+            relief=tk.FLAT, highlightthickness=1, highlightbackground="#d7e1ef"
+        )
         help_text.pack(fill=tk.BOTH, expand=True)
 
         # 스타일 태그 설정
