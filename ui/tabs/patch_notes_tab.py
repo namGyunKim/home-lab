@@ -20,8 +20,16 @@ class PatchNotesTab(ttk.Frame):
         notes_text_widget.tag_configure("subtitle", font=("Malgun Gothic", 13, "bold"), spacing1=15, spacing3=7, lmargin1=4, foreground="#1f3858")
         notes_text_widget.tag_configure("item", font=("Malgun Gothic", 12), lmargin1=17, lmargin2=17, spacing1=5, spacing3=3)
 
-        notes_text_widget.insert(tk.END, "푸크로 V4.7 (Readability Update)\n", "title")
-        notes_text_widget.insert(tk.END, "주요 개선사항 (V4.7)\n", "subtitle")
+        notes_text_widget.insert(tk.END, "푸크로 V4.8 (Stability Update)\n", "title")
+        notes_text_widget.insert(tk.END, "주요 개선사항 (V4.8)\n", "subtitle")
+        notes_text_widget.insert(tk.END, "• 🖥️ [해상도] 화면이 작거나 배율이 높아도 탭 내용이 잘리지 않도록 스크롤을 지원합니다.\n", "item")
+        notes_text_widget.insert(tk.END, "• 🔤 [가독성] 목록 제목과 행 높이를 글자 크기에 맞춰 계산해 글자 잘림을 없앴습니다.\n", "item")
+        notes_text_widget.insert(tk.END, "• 🖱️ [다중 모니터] 보조 모니터에서 녹화한 동작이 무시되던 문제를 해결했습니다.\n", "item")
+        notes_text_widget.insert(tk.END, "• 🛡️ [안정성] 중지·오류 시 키/마우스가 눌린 채 남는 문제를 방지합니다.\n", "item")
+        notes_text_widget.insert(tk.END, "• 🔒 [안정성] 매크로가 동시에 실행되지 않도록 조정해 입력 충돌을 막습니다.\n", "item")
+        notes_text_widget.insert(tk.END, "• 🔍 [이미지] 이미지 대기 정확도를 설정할 수 있고, 인식 실패 원인을 로그로 알립니다.\n", "item")
+
+        notes_text_widget.insert(tk.END, "\n이전 변경사항 (V4.7)\n", "subtitle")
         notes_text_widget.insert(tk.END, "• ✨ [UI] 패치노트 탭을 제거하고 핵심 기능 탭 중심으로 정리했습니다.\n", "item")
         notes_text_widget.insert(tk.END, "• 👀 [가독성] 버튼/텍스트 대비와 폰트 크기를 조정해 시인성을 높였습니다.\n", "item")
 

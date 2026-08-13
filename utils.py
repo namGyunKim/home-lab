@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import glob
 import re
@@ -8,6 +9,112 @@ from PIL import Image
 
 # 안전장치 설정
 pyautogui.FAILSAFE = True
+
+# --- 다중 모니터 좌표 판정 ---
+# pyautogui.onScreen()은 주 모니터 영역만 유효 좌표로 판정하므로,
+# 주 모니터 왼쪽/위쪽에 배치된 보조 모니터(음수 좌표)의 동작이 전부 무시된다.
+# 그렇다고 가상 데스크톱의 경계 사각형만 검사하면, 크기가 다른 모니터를 나란히 둘 때
+# 생기는 빈 영역(어느 모니터에도 속하지 않는 좌표)까지 통과시킨다.
+# 따라서 각 모니터의 실제 영역 중 하나에 포함되는지로 판정한다.
+_VIRTUAL_SCREEN_RECT = None
+_MONITOR_RECTS = None
+
+def refresh_screen_info():
+    """모니터 구성 정보를 다시 계산합니다. (매크로 시작 시 호출)"""
+    global _VIRTUAL_SCREEN_RECT, _MONITOR_RECTS
+    _VIRTUAL_SCREEN_RECT = None
+    _MONITOR_RECTS = None
+    get_virtual_screen_rect()
+    return get_monitor_rects()
+
+# 예전 이름 호환
+refresh_virtual_screen_rect = refresh_screen_info
+
+def get_monitor_rects():
+    """연결된 각 모니터의 영역 목록 [(left, top, right, bottom), ...]을 반환합니다."""
+    global _MONITOR_RECTS
+    if _MONITOR_RECTS is not None:
+        return _MONITOR_RECTS
+
+    rects = []
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            user32 = ctypes.windll.user32
+            MonitorEnumProc = ctypes.WINFUNCTYPE(
+                ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p,
+                ctypes.POINTER(wintypes.RECT), ctypes.c_ssize_t)
+
+            def _collect(hmonitor, hdc, lprect, lparam):
+                r = lprect.contents
+                rects.append((r.left, r.top, r.right, r.bottom))
+                return 1
+
+            if not user32.EnumDisplayMonitors(None, None, MonitorEnumProc(_collect), 0):
+                rects = []
+        except Exception:
+            rects = []
+
+    if not rects:
+        # 모니터 목록을 얻지 못하면 가상 데스크톱 전체를 하나의 화면으로 취급한다.
+        rect = get_virtual_screen_rect()
+        if rect:
+            left, top, width, height = rect
+            rects = [(left, top, left + width, top + height)]
+
+    _MONITOR_RECTS = rects
+    return rects
+
+def get_virtual_screen_rect():
+    """모든 모니터를 포함하는 영역 (left, top, width, height)를 반환합니다."""
+    global _VIRTUAL_SCREEN_RECT
+    if _VIRTUAL_SCREEN_RECT is not None:
+        return _VIRTUAL_SCREEN_RECT
+
+    rect = None
+    if sys.platform == "win32":
+        try:
+            from ctypes import windll
+            user32 = windll.user32
+            # SM_XVIRTUALSCREEN=76, SM_YVIRTUALSCREEN=77,
+            # SM_CXVIRTUALSCREEN=78, SM_CYVIRTUALSCREEN=79
+            left = user32.GetSystemMetrics(76)
+            top = user32.GetSystemMetrics(77)
+            width = user32.GetSystemMetrics(78)
+            height = user32.GetSystemMetrics(79)
+            if width > 0 and height > 0:
+                rect = (left, top, width, height)
+        except Exception:
+            rect = None
+
+    if rect is None:
+        try:
+            size = pyautogui.size()
+            rect = (0, 0, int(size[0]), int(size[1]))
+        except Exception:
+            rect = None
+
+    _VIRTUAL_SCREEN_RECT = rect
+    return rect
+
+def is_on_screen(x, y):
+    """좌표가 연결된 모니터 중 하나에 실제로 속하는지 판정합니다."""
+    try:
+        x, y = int(x), int(y)
+    except (TypeError, ValueError):
+        return False
+
+    monitors = get_monitor_rects()
+    if not monitors:
+        # 화면 정보를 얻지 못하면 막지 않고 통과시킨다. (실패는 pyautogui가 처리)
+        return True
+
+    for left, top, right, bottom in monitors:
+        if left <= x < right and top <= y < bottom:
+            return True
+    return False
 
 # --- 이미지 캐싱 시스템 (성능 최적화) ---
 # 구조: { 'file_path': {'mtime': timestamp, 'image': PIL.ImageObject} }
@@ -47,6 +154,27 @@ def get_cached_image(image_path):
     except Exception as e:
         print(f"이미지 캐싱 오류 ({image_path}): {e}")
         return None
+
+# --- 이미지 인식 오류 안내 ---
+# 같은 오류가 매 프레임 반복되므로 종류별로 한 번씩만 로그를 남긴다.
+_REPORTED_IMAGE_ERRORS = set()
+
+def report_image_search_error(log_func, exc):
+    """이미지 탐색 중 발생한 예외를 (종류별 1회) 사용자에게 알립니다."""
+    key = type(exc).__name__
+    if key in _REPORTED_IMAGE_ERRORS:
+        return
+    _REPORTED_IMAGE_ERRORS.add(key)
+
+    message = str(exc)
+    log_func(f"🔥 이미지 인식 실패: {key}: {message}")
+    if isinstance(exc, TypeError) and 'confidence' in message:
+        log_func("ℹ️ 정확도(confidence) 기능은 opencv-python이 필요합니다. "
+                 "설치가 누락되면 이미지를 찾지 못합니다.")
+
+def reset_image_search_errors():
+    """매크로를 새로 시작할 때 오류 안내 기록을 초기화합니다."""
+    _REPORTED_IMAGE_ERRORS.clear()
 
 def clear_image_cache():
     """캐시된 모든 이미지를 해제합니다."""
@@ -151,8 +279,11 @@ def execute_image_scan(log_func, image_folder_path, stop_event, pause_event):
                 )
             except pyautogui.ImageNotFoundException:
                 location = None
-            except Exception:
+            except Exception as e:
+                # [수정] 예외를 조용히 삼키면 "실행은 되는데 아무것도 안 하는" 상태가 된다.
+                # opencv 누락(confidence 사용 불가), 화면 캡처 실패 등은 반드시 알린다.
                 location = None
+                report_image_search_error(log_func, e)
 
             if location:
                 # 클릭 수행

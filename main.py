@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
+import tkinter.font as tkFont
 import os
 import sys
 import json
@@ -9,15 +10,19 @@ import threading
 import pyautogui
 from pynput import keyboard
 from ui_components import RecordingMacroTab, ChainGroupTab, ImageMacroTab, InfoTab
-from utils import clear_image_cache
+from ui.scrollable import ScrollableFrame
+from utils import clear_image_cache, is_on_screen
 
 # --- 메인 애플리케이션 클래스 (개선됨) ---
 class MainApp:
     def __init__(self, root):
         self.root = root
-        self.title_base = "푸크로 V4.7 (Readability Update)"
+        self.title_base = "푸크로 V4.8 (Stability Update)"
         self.root.title(self.title_base)
-        self.root.minsize(1240, 820)
+        # [수정] 최소 크기를 화면 크기에 맞춰 결정한다.
+        # 고정값(1240x820)은 1366x768 노트북이나 고배율 환경에서 화면보다 커져
+        # 창을 줄일 수 없고 아래쪽 UI가 잘려 보이지 않는 원인이 되었다.
+        self._apply_min_size()
 
         # [수정] 설정 파일 경로를 실행 파일 기준 상대 경로(로컬)로 변경 (Portable 지원)
         if getattr(sys, 'frozen', False):
@@ -229,7 +234,15 @@ class MainApp:
              background=[("selected", colors["surface"]), ("active", colors["neutral_hover"])],
              foreground=[("selected", colors["text"]), ("active", colors["text"])])
 
-        _cfg("Treeview", rowheight=34, font=fonts["tree"], background=colors["surface"], fieldbackground=colors["surface"],
+        # [수정] 행 높이를 픽셀로 고정하면 디스플레이 배율이 높을 때 글자가 잘린다.
+        # 실제 글자 높이를 재서 행 높이를 정한다.
+        try:
+            tree_line_height = tkFont.Font(font=fonts["tree"]).metrics("linespace")
+        except tk.TclError:
+            tree_line_height = 20
+        row_height = max(34, tree_line_height + 14)
+
+        _cfg("Treeview", rowheight=row_height, font=fonts["tree"], background=colors["surface"], fieldbackground=colors["surface"],
              foreground=colors["text"], borderwidth=0)
         _map("Treeview",
              background=[("selected", "#c3d7fb")],
@@ -237,8 +250,28 @@ class MainApp:
         _cfg("Treeview.Heading", font=fonts["tree_heading"], padding=(8, 7),
              background=colors["neutral"], foreground=colors["muted"])
 
+    def _usable_screen_size(self):
+        """작업표시줄 등을 제외한 대략적인 사용 가능 화면 크기."""
+        try:
+            screen_w = self.root.winfo_screenwidth()
+            screen_h = self.root.winfo_screenheight()
+        except tk.TclError:
+            return 1024, 700
+        # 작업표시줄/창 테두리 여유
+        return max(640, screen_w - 40), max(480, screen_h - 90)
+
+    def _apply_min_size(self):
+        usable_w, usable_h = self._usable_screen_size()
+        min_w = min(1100, usable_w)
+        min_h = min(700, usable_h)
+        self.root.minsize(min_w, min_h)
+        return min_w, min_h
+
     def _validate_and_set_geometry(self, geometry):
-        width, height = 1320, 880
+        usable_w, usable_h = self._usable_screen_size()
+        width = min(1320, usable_w)
+        height = min(880, usable_h)
+
         if not geometry:
             self.center_window(width, height)
             return
@@ -246,8 +279,14 @@ class MainApp:
             match = re.match(r"(\d+)x(\d+)\+(-?\d+)\+(-?\d+)", geometry)
             if match:
                 w, h, x, y = map(int, match.groups())
-                if pyautogui.onScreen(x, y):
-                    self.root.geometry(geometry)
+                # [수정] 판정을 가상 데스크톱 기준으로 변경.
+                # pyautogui.onScreen()은 주 모니터만 인정하므로 보조 모니터에
+                # 두었던 창이 매번 주 모니터 중앙으로 끌려오는 문제가 있었다.
+                if is_on_screen(x, y):
+                    # 저장된 크기가 현재 화면보다 크면 화면에 맞춰 줄인다.
+                    w = min(w, usable_w)
+                    h = min(h, usable_h)
+                    self.root.geometry(f'{w}x{h}+{x}+{y}')
                     return
                 else:
                     self.log_event("⚠️ 저장된 창 위치가 화면 밖이라 중앙으로 재설정합니다.")
@@ -259,8 +298,8 @@ class MainApp:
         self.root.update_idletasks()
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
-        x = (screen_width // 2) - (width // 2)
-        y = (screen_height // 2) - (height // 2)
+        x = max(0, (screen_width // 2) - (width // 2))
+        y = max(0, (screen_height // 2) - (height // 2))
         self.root.geometry(f'{width}x{height}+{x}+{y}')
 
     def load_config(self):
@@ -306,7 +345,10 @@ class MainApp:
         # 좌우 분할 (탭 화면 / 로그 화면)
         paned_window = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
         paned_window.pack(fill=tk.BOTH, expand=True)
+        self._pane_user_adjusted = False
         self.root.after(120, lambda: self._set_initial_pane_layout(paned_window))
+        paned_window.bind('<Configure>', lambda e: self._ensure_pane_min_width(paned_window))
+        paned_window.bind('<ButtonPress-1>', lambda e: self._on_pane_press(e, paned_window))
 
         # [왼쪽] 탭 컨트롤
         left_frame = ttk.Frame(paned_window)
@@ -338,11 +380,57 @@ class MainApp:
 
         self.log("프로그램 준비 완료. 사용할 탭을 선택하고 시작하세요.")
 
+    def _needed_tab_width(self):
+        """탭 내용이 가로로 잘리지 않는 데 필요한 폭."""
+        needed = 0
+        for child in self.notebook.winfo_children():
+            inner = getattr(child, 'interior', child)
+            try:
+                needed = max(needed, inner.winfo_reqwidth())
+            except tk.TclError:
+                pass
+        return needed + 40  # 스크롤바 및 여백
+
     def _set_initial_pane_layout(self, paned_window):
         try:
             total_width = paned_window.winfo_width()
-            if total_width > 700:
-                paned_window.sashpos(0, int(total_width * 0.61))
+            if total_width <= 400:
+                return
+
+            # [수정] 비율만으로 나누면 창이 좁을 때 왼쪽 탭이 가로로 잘려
+            # 버튼과 글자가 보이지 않는다. 탭 내용에 필요한 폭을 우선 확보하되,
+            # 로그 영역도 최소 폭을 유지한다.
+            target = max(int(total_width * 0.61), self._needed_tab_width())
+            target = min(target, max(int(total_width * 0.5), total_width - 300))
+            paned_window.sashpos(0, target)
+        except tk.TclError:
+            pass
+
+    def _on_pane_press(self, event, paned_window):
+        """사용자가 분할선을 직접 조절했으면 이후 자동 조정을 멈춘다."""
+        try:
+            element = paned_window.identify(event.x, event.y)
+            # identify()는 sash를 눌렀을 때 인덱스를 돌려주는데, 첫 sash는 정수 0이라
+            # 참/거짓으로 검사하면 눌러도 감지되지 않는다. 빈 값인지로 판정한다.
+            if element != '' and element is not None:
+                self._pane_user_adjusted = True
+        except tk.TclError:
+            pass
+
+    def _ensure_pane_min_width(self, paned_window):
+        """창 크기가 바뀌어도 왼쪽 탭이 가로로 잘리지 않도록 분할선을 보정."""
+        if getattr(self, '_pane_user_adjusted', False):
+            return
+        try:
+            total_width = paned_window.winfo_width()
+            if total_width <= 400:
+                return
+            current = paned_window.sashpos(0)
+            target = max(current, self._needed_tab_width())
+            target = min(target, max(int(total_width * 0.5), total_width - 300))
+            # 되먹임으로 인한 반복 조정을 막기 위해 유의미한 차이일 때만 적용
+            if abs(target - current) > 2:
+                paned_window.sashpos(0, target)
         except tk.TclError:
             pass
 
@@ -390,11 +478,13 @@ class MainApp:
         ttk.Button(run_log_frame, text="로그 지우기", style="Ghost.TButton", command=self.clear_log).grid(row=1, column=0, sticky='e', padx=5, pady=(0,5))
 
     def _init_tabs(self):
-        # 탭 컨테이너 생성
-        tab_record = ttk.Frame(self.notebook)
-        tab_group = ttk.Frame(self.notebook)
-        tab_image = ttk.Frame(self.notebook)
-        tab_info = ttk.Frame(self.notebook)
+        # [수정] 각 탭을 스크롤 가능한 컨테이너로 감싼다.
+        # 화면이 작거나 배율이 높으면 탭 내용(요구 높이 약 1000px 이상)이 창을 넘어
+        # 재생 설정·버튼이 잘려 보이지 않았다.
+        tab_record = ScrollableFrame(self.notebook)
+        tab_group = ScrollableFrame(self.notebook)
+        tab_image = ScrollableFrame(self.notebook)
+        tab_info = ttk.Frame(self.notebook)   # 도움말은 자체 스크롤 텍스트를 사용
 
         self.notebook.add(tab_record, text="매크로 체인")
         self.notebook.add(tab_group, text="매크로 그룹")
@@ -404,17 +494,26 @@ class MainApp:
         # 각 탭 인스턴스 생성
         # config는 load_config()에서 읽은 raw 딕셔너리.
         # 각 탭 내부에서 상대 경로를 절대 경로로 변환하는 로직 수행 필요.
-        self.recording_tab = RecordingMacroTab(tab_record, self, config=self.config.get('record_tab'))
+        self.recording_tab = RecordingMacroTab(tab_record.interior, self, config=self.config.get('record_tab'))
         self.recording_tab.pack(fill=tk.BOTH, expand=True)
 
-        self.group_tab = ChainGroupTab(tab_group, self, config=self.config.get('group_tab'))
+        self.group_tab = ChainGroupTab(tab_group.interior, self, config=self.config.get('group_tab'))
         self.group_tab.pack(fill=tk.BOTH, expand=True)
 
-        self.image_tab = ImageMacroTab(tab_image, self, config=self.config.get('image_tab'))
+        self.image_tab = ImageMacroTab(tab_image.interior, self, config=self.config.get('image_tab'))
         self.image_tab.pack(fill=tk.BOTH, expand=True)
 
         self.info_tab = InfoTab(tab_info)
         self.info_tab.pack(fill=tk.BOTH, expand=True)
+
+        # 단축키 처리를 위해 탭 컨테이너 -> 탭 인스턴스 매핑을 보관한다.
+        # (스크롤 컨테이너를 씌우면서 winfo_children()[0] 방식은 더 이상 통하지 않음)
+        self._tab_instances = {
+            str(tab_record): self.recording_tab,
+            str(tab_group): self.group_tab,
+            str(tab_image): self.image_tab,
+            str(tab_info): self.info_tab,
+        }
 
     def _setup_hotkeys(self):
         try:
@@ -425,13 +524,29 @@ class MainApp:
             self.log(f"🔥 단축키 설정 실패: {e}")
             self.log("ℹ️ 관리자 권한으로 실행하거나 접근성 권한을 확인하세요.")
 
+    def refresh_execution_state(self):
+        """전역 실행 상태에 맞춰 모든 탭의 시작 버튼을 갱신합니다.
+
+        마우스·키보드를 공유하므로 한 작업이 실행 중이면 다른 탭의 시작도 막는다.
+        """
+        for name in ('recording_tab', 'group_tab', 'image_tab'):
+            tab = getattr(self, name, None)
+            if tab is None:
+                continue
+            refresh = getattr(tab, 'refresh_busy_state', None)
+            if refresh is None:
+                continue
+            try:
+                refresh()
+            except tk.TclError:
+                pass
+
     def _get_active_tab_widget(self):
         """현재 활성화된 탭의 위젯 인스턴스를 반환"""
         current_tab_id = self.notebook.select()
-        current_widget = self.notebook.nametowidget(current_tab_id)
-        if current_widget.winfo_children():
-            return current_widget.winfo_children()[0]
-        return None
+        if not current_tab_id:
+            return None
+        return getattr(self, '_tab_instances', {}).get(str(current_tab_id))
 
     def _on_key_press(self, key):
         try:
@@ -462,7 +577,8 @@ class MainApp:
                 if key == keyboard.Key.f3: self.root.after(0, self.image_tab.start_button.invoke)
                 elif key == keyboard.Key.f4: self.root.after(0, self.image_tab.stop_button.invoke)
                 elif key == keyboard.Key.f5: self.root.after(0, self.image_tab.pause_button.invoke)
-                elif key == keyboard.Key.f9: self.root.after(0, self.image_tab.start_defining_area)
+                # 버튼을 거쳐야 실행 중 잠금(비활성 버튼은 invoke가 무시됨)이 단축키에도 적용된다.
+                elif key == keyboard.Key.f9: self.root.after(0, self.image_tab.set_area_button.invoke)
 
         except Exception:
             pass
@@ -482,6 +598,7 @@ class MainApp:
                 or self.recording_tab.macro.is_playing
                 or self.recording_tab.macro.is_recording
                 or self.group_tab.macro.is_playing
+                or self._is_area_selection_active()
         ):
             if not messagebox.askyesno("종료 확인", "매크로가 실행 중이거나 녹화 중입니다. 정말로 종료하시겠습니까?"):
                 return
@@ -492,9 +609,25 @@ class MainApp:
 
         self.quit_app()
 
+    def _is_area_selection_active(self):
+        """이미지 탭의 화면 영역 선택이 진행 중인지 확인합니다."""
+        selector = getattr(getattr(self, 'image_tab', None), 'area_selector', None)
+        try:
+            return bool(selector and selector.is_alive())
+        except Exception:
+            return False
+
     def quit_app(self):
         """애플리케이션 안전 종료"""
-        if hasattr(self, 'image_tab'): self.image_tab.macro.stop()
+        if hasattr(self, 'image_tab'):
+            self.image_tab.macro.stop()
+            # 영역 선택 중이면 전역 마우스/키보드 리스너를 명시적으로 중지한다.
+            selector = getattr(self.image_tab, 'area_selector', None)
+            if selector is not None:
+                try:
+                    selector.cleanup()
+                except Exception:
+                    pass
         if hasattr(self, 'recording_tab'):
             self.recording_tab.macro.stop_playback()
             self.recording_tab.macro.stop_recording()

@@ -7,6 +7,9 @@ env/
 build/
 dist/
 *.spec
+# Pucro.spec은 빌드 지침(AGENTS.md)이 기준으로 삼는 파일이라 추적한다.
+# (hiddenimports 등 배포에 필요한 설정이 들어 있어 제외하면 커밋에 반영되지 않는다)
+!Pucro.spec
 
 # 파이참 관련
 .idea/

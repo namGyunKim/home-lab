@@ -5,6 +5,8 @@ import json
 import threading
 from constants import RepeatMode, MacroType
 from macro_logic import RecordingMacro
+from executor import EXECUTION_LOCK
+from ui.metrics import heading_width, set_widget_state_recursive
 
 class RecordingMacroTab(ttk.Frame):
     def __init__(self, parent, app, config=None):
@@ -84,10 +86,14 @@ class RecordingMacroTab(ttk.Frame):
         list_container.columnconfigure(0, weight=1)
         columns = ("#1", "#2")
         self.macro_tree = ttk.Treeview(list_container, columns=columns, show="headings", selectmode="extended")
-        self.macro_tree.heading("#1", text="매크로")
-        self.macro_tree.heading("#2", text="실행 후 대기(초)")
-        self.macro_tree.column("#1", width=230)
-        self.macro_tree.column("#2", width=90, anchor='center')
+        # [수정] 헤딩 문구가 잘리지 않도록 실제 폰트 폭을 재서 컬럼 폭을 정한다.
+        head_macro, head_delay = "매크로", "실행 후 대기(초)"
+        self.macro_tree.heading("#1", text=head_macro)
+        self.macro_tree.heading("#2", text=head_delay)
+        self.macro_tree.column("#1", width=max(230, heading_width(head_macro)),
+                               minwidth=heading_width(head_macro), stretch=True)
+        self.macro_tree.column("#2", width=heading_width(head_delay), anchor='center',
+                               minwidth=heading_width(head_delay), stretch=False)
         self.macro_tree.grid(row=0, column=0, sticky='nsew')
         scrollbar = ttk.Scrollbar(list_container, orient=tk.VERTICAL, command=self.macro_tree.yview)
         scrollbar.grid(row=0, column=1, sticky='ns')
@@ -121,30 +127,38 @@ class RecordingMacroTab(ttk.Frame):
         self.play_settings_frame = ttk.LabelFrame(self, text="재생 설정 (현재 체인)", style="Card.TLabelframe")
         self.play_settings_frame.pack(fill=tk.X, padx=10, pady=5)
         self.repeat_mode_var = tk.StringVar(value=RepeatMode.INFINITE.name)
-        self.repeat_value_var = tk.StringVar(value="10")
+        # [수정] 횟수와 시간(분)이 같은 변수를 공유해 모드를 바꾸면 값이 섞였다. 분리한다.
+        self.repeat_count_var = tk.StringVar(value="10")
+        self.repeat_duration_var = tk.StringVar(value="10")
         self.repeat_delay_var = tk.StringVar(value="1.0")
         self.playback_speed_var = tk.StringVar(value="1.0x")
         self.image_timeout_var = tk.StringVar(value="30")
+        self.image_confidence_var = tk.StringVar(value="0.8")
         repeat_mode_frame = ttk.Frame(self.play_settings_frame)
         repeat_mode_frame.grid(row=0, column=0, columnspan=4, sticky='w', padx=5, pady=(5,0))
         ttk.Radiobutton(repeat_mode_frame, text="무한 반복", variable=self.repeat_mode_var, value=RepeatMode.INFINITE.name, command=self.toggle_repeat_entry).pack(side=tk.LEFT, padx=(0, 10))
         ttk.Radiobutton(repeat_mode_frame, text="횟수:", variable=self.repeat_mode_var, value=RepeatMode.COUNT.name, command=self.toggle_repeat_entry).pack(side=tk.LEFT)
-        self.repeat_count_entry = ttk.Entry(repeat_mode_frame, textvariable=self.repeat_value_var, width=8)
+        self.repeat_count_entry = ttk.Entry(repeat_mode_frame, textvariable=self.repeat_count_var, width=8)
         self.repeat_count_entry.pack(side=tk.LEFT, padx=(2, 10))
         ttk.Radiobutton(repeat_mode_frame, text="시간(분):", variable=self.repeat_mode_var, value=RepeatMode.DURATION.name, command=self.toggle_repeat_entry).pack(side=tk.LEFT)
-        self.repeat_duration_entry = ttk.Entry(repeat_mode_frame, textvariable=self.repeat_value_var, width=8)
+        self.repeat_duration_entry = ttk.Entry(repeat_mode_frame, textvariable=self.repeat_duration_var, width=8)
         self.repeat_duration_entry.pack(side=tk.LEFT, padx=2)
         ttk.Label(self.play_settings_frame, text="전체 반복 대기(초):").grid(row=1, column=0, sticky='w', padx=5, pady=2)
         ttk.Entry(self.play_settings_frame, textvariable=self.repeat_delay_var, width=8).grid(row=1, column=1, sticky='w', pady=2)
         ttk.Label(self.play_settings_frame, text="재생 속도:").grid(row=1, column=2, sticky='w', padx=15, pady=2)
         self.speed_combo = ttk.Combobox(self.play_settings_frame, textvariable=self.playback_speed_var, values=["0.5x", "1.0x", "1.5x", "2.0x", "5.0x"], width=6)
         self.speed_combo.grid(row=1, column=3, sticky='w', pady=2)
+        # [수정] columnspan=2 였던 프레임이 1열의 입력칸과 같은 칸을 차지해
+        # 서로 겹쳐 '?' 버튼이 가려졌다. 겹치지 않도록 0열만 사용한다.
         img_wait_frame = ttk.Frame(self.play_settings_frame)
-        img_wait_frame.grid(row=2, column=0, columnspan=2, sticky='w', padx=5, pady=(2,5))
+        img_wait_frame.grid(row=2, column=0, sticky='w', padx=5, pady=(2,5))
         ttk.Label(img_wait_frame, text="이미지 대기(초):").pack(side=tk.LEFT)
         help_button = ttk.Button(img_wait_frame, text="?", style="Ghost.TButton", width=2, command=self.show_help)
         help_button.pack(side=tk.LEFT, padx=2)
         ttk.Entry(self.play_settings_frame, textvariable=self.image_timeout_var, width=8).grid(row=2, column=1, sticky='w', pady=(2,5))
+        # [추가] 이미지 대기 정확도. 해상도/배율이 다른 PC에서 인식률을 조절할 수 있게 한다.
+        ttk.Label(self.play_settings_frame, text="이미지 정확도:").grid(row=2, column=2, sticky='w', padx=15, pady=(2,5))
+        ttk.Entry(self.play_settings_frame, textvariable=self.image_confidence_var, width=6).grid(row=2, column=3, sticky='w', pady=(2,5))
         self.toggle_repeat_entry()
 
     def show_help(self):
@@ -153,12 +167,25 @@ class RecordingMacroTab(ttk.Frame):
                 self.app.notebook.select(tab_id)
                 return
 
+    def _current_repeat_value(self, repeat_mode):
+        """선택된 반복 모드에 해당하는 값을 반환합니다."""
+        if repeat_mode == RepeatMode.COUNT:
+            return int(self.repeat_count_var.get())
+        if repeat_mode == RepeatMode.DURATION:
+            return float(self.repeat_duration_var.get())
+        return 0  # 무한 반복은 값을 쓰지 않는다.
+
     def toggle_repeat_entry(self):
         try:
             if not self.play_settings_frame.winfo_exists(): return
+            # [수정] 재생/녹화 중에는 선택된 모드의 입력칸도 잠근 상태를 유지한다.
+            # (이 검사가 없으면 설정 잠금 직후 여기서 다시 활성화된다)
+            busy = self.macro.is_playing or self.macro.is_recording
             mode = self.repeat_mode_var.get()
-            self.repeat_count_entry.config(state=tk.NORMAL if mode == RepeatMode.COUNT.name else tk.DISABLED)
-            self.repeat_duration_entry.config(state=tk.NORMAL if mode == RepeatMode.DURATION.name else tk.DISABLED)
+            count_on = (not busy) and mode == RepeatMode.COUNT.name
+            duration_on = (not busy) and mode == RepeatMode.DURATION.name
+            self.repeat_count_entry.config(state=tk.NORMAL if count_on else tk.DISABLED)
+            self.repeat_duration_entry.config(state=tk.NORMAL if duration_on else tk.DISABLED)
         except tk.TclError: pass
 
     def start_macro_chain(self):
@@ -176,13 +203,15 @@ class RecordingMacroTab(ttk.Frame):
             return
         try:
             speed_str = self.playback_speed_var.get().replace('x', '')
+            repeat_mode = RepeatMode[self.repeat_mode_var.get()]
             settings = {
                 'playlist': playlist,
-                'repeat_mode': RepeatMode[self.repeat_mode_var.get()],
-                'repeat_value': int(self.repeat_value_var.get()),
+                'repeat_mode': repeat_mode,
+                'repeat_value': self._current_repeat_value(repeat_mode),
                 'repeat_delay': float(self.repeat_delay_var.get()),
                 'playback_speed': float(speed_str),
                 'image_timeout': int(self.image_timeout_var.get()),
+                'image_confidence': float(self.image_confidence_var.get()),
                 'app': self.app,
                 'tree': self.macro_tree
             }
@@ -212,6 +241,7 @@ class RecordingMacroTab(ttk.Frame):
                 'playlist': [item_info],
                 'playback_speed': float(speed_str),
                 'image_timeout': int(self.image_timeout_var.get()),
+                'image_confidence': float(self.image_confidence_var.get()),
                 'app': self.app,
                 'tree': self.macro_tree
             }
@@ -259,7 +289,16 @@ class RecordingMacroTab(ttk.Frame):
             file_path = filedialog.asksaveasfilename(title="매크로 체인 저장", defaultextension=".pchain", filetypes=[("Pucro Chain files", "*.pchain"), ("All files", "*.*")])
         if not file_path: return False
         self.current_chain_path = file_path
-        chain_content = {'settings': {'repeat_mode': self.repeat_mode_var.get(), 'repeat_value': self.repeat_value_var.get(), 'repeat_delay': self.repeat_delay_var.get(), 'playback_speed': self.playback_speed_var.get(), 'image_timeout': self.image_timeout_var.get()}, 'playlist': []}
+        chain_content = {'settings': {
+            'repeat_mode': self.repeat_mode_var.get(),
+            # repeat_value는 예전 형식과의 호환을 위해 유지한다.
+            'repeat_value': self.repeat_duration_var.get() if self.repeat_mode_var.get() == RepeatMode.DURATION.name else self.repeat_count_var.get(),
+            'repeat_count': self.repeat_count_var.get(),
+            'repeat_duration': self.repeat_duration_var.get(),
+            'repeat_delay': self.repeat_delay_var.get(),
+            'playback_speed': self.playback_speed_var.get(),
+            'image_timeout': self.image_timeout_var.get(),
+            'image_confidence': self.image_confidence_var.get()}, 'playlist': []}
         chain_dir = os.path.dirname(file_path)
         for item_id in self.macro_tree.get_children():
             item_data = self.playlist_data.get(item_id)
@@ -294,10 +333,14 @@ class RecordingMacroTab(ttk.Frame):
             self.clear_macro_list(from_load=True)
             settings = chain_content.get('settings', {})
             self.repeat_mode_var.set(settings.get('repeat_mode', RepeatMode.INFINITE.name))
-            self.repeat_value_var.set(settings.get('repeat_value', '10'))
+            # 예전 형식(repeat_value 하나만 저장)도 그대로 읽는다.
+            legacy_value = settings.get('repeat_value', '10')
+            self.repeat_count_var.set(settings.get('repeat_count', legacy_value))
+            self.repeat_duration_var.set(settings.get('repeat_duration', legacy_value))
             self.repeat_delay_var.set(settings.get('repeat_delay', '1.0'))
             self.playback_speed_var.set(settings.get('playback_speed', '1.0x'))
             self.image_timeout_var.set(settings.get('image_timeout', '30'))
+            self.image_confidence_var.set(settings.get('image_confidence', '0.8'))
             self.toggle_repeat_entry()
             chain_dir = os.path.dirname(file_path)
             for item in chain_content.get('playlist', []):
@@ -375,21 +418,36 @@ class RecordingMacroTab(ttk.Frame):
                             pass
 
                 if self.play_settings_frame.winfo_exists():
-                    for child in self.play_settings_frame.winfo_children():
-                        try:
-                            child.config(state=state)
-                        except tk.TclError:
-                            pass
+                    # [수정] 직계 자식만 순회하면 Frame 안의 반복 모드 라디오버튼이
+                    # 재생 중에도 활성 상태로 남는다. 하위까지 재귀적으로 적용한다.
+                    set_widget_state_recursive(self.play_settings_frame, state)
                 self.toggle_repeat_entry()
             if paused is not None and self.macro.is_playing:
                 self.pause_play_button.config(text="재개 (F5)" if paused else "일시정지 (F5)")
             if self.macro.is_recording: self.app.update_status("녹화 중...")
             elif not is_busy: self.app.update_status("준비")
             self.on_tree_select(None)
+            # 실행 상태가 바뀌었으므로 다른 탭의 시작 버튼도 갱신한다.
+            if hasattr(self.app, 'refresh_execution_state'):
+                self.app.refresh_execution_state()
         except tk.TclError: pass
 
+    def refresh_busy_state(self):
+        """어떤 작업이든 실행 중이면 이 탭의 시작 버튼을 모두 잠급니다.
+
+        같은 탭 안에서도 재생 중 녹화 시작 / 녹화 중 재생 시작은 불가능하므로
+        (EXECUTION_LOCK이 거부한다) 버튼 표시도 함께 잠근다.
+        """
+        try:
+            state = tk.DISABLED if EXECUTION_LOCK.is_busy() else tk.NORMAL
+            self.record_start_button.config(state=state)
+            self.play_start_button.config(state=state)
+            self.on_tree_select(None)
+        except tk.TclError:
+            pass
+
     def on_tree_select(self, event):
-        if self.macro.is_playing or self.macro.is_recording:
+        if self.macro.is_playing or self.macro.is_recording or EXECUTION_LOCK.is_busy():
             self.save_button.config(state=tk.DISABLED)
             self.test_run_button.config(state=tk.DISABLED)
             return
@@ -424,6 +482,13 @@ class RecordingMacroTab(ttk.Frame):
 
     def edit_tree_cell(self, item, column):
         column_box = self.macro_tree.bbox(item, column)
+        # 항목이 화면에 보이지 않으면 bbox가 빈 값이라 좌표를 꺼낼 수 없다.
+        if not column_box:
+            self.macro_tree.see(item)
+            self.macro_tree.update_idletasks()
+            column_box = self.macro_tree.bbox(item, column)
+            if not column_box:
+                return
         entry_edit = ttk.Entry(self.macro_tree, justify='center')
         current_value = self.macro_tree.set(item, column)
         entry_edit.insert(0, current_value)
